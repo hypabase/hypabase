@@ -1,0 +1,20 @@
+extends: substitution
+message: "Wordy: '%s'. Use '%s' instead."
+level: suggestion
+swap:
+  'in order to': 'to'
+  'due to the fact that': 'because'
+  'in the event that': 'if'
+  'at this point in time': 'now'
+  'on a regular basis': 'regularly'
+  'a large number of': 'many'
+  'the vast majority of': 'most'
+  'has the ability to': 'can'
+  'is able to': 'can'
+  'in addition to': 'besides'
+  'with the exception of': 'except'
+  'prior to': 'before'
+  'subsequent to': 'after'
+  'in close proximity to': 'near'
+  'take into consideration': 'consider'
+  'make use of': 'use'

@@ -1,0 +1,94 @@
+[project]
+name = "hypabase"
+version = "0.1.0"
+description = "A Python library for storing and querying n-ary relationships with provenance tracking. SQLite-backed, zero configuration."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [{ name = "Hypabase" }]
+keywords = [
+    "hypergraph",
+    "database",
+    "knowledge-graph",
+    "graphrag",
+    "hyperrag",
+    "n-ary",
+    "context-graph",
+    "rag",
+    "ai",
+    "mcp",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+cli = ["click>=8.0"]
+mcp = ["mcp>=1.0", "click>=8.0"]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.24",
+    "mike>=2.0",
+    "mkdocs-llmstxt>=0.2",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "mypy>=1.10",
+    "ruff>=0.8",
+]
+
+[project.scripts]
+hypabase = "hypabase.cli.main:cli"
+hypabase-mcp = "hypabase.mcp:run_server"
+
+[project.urls]
+Homepage = "https://hypabase.app"
+Repository = "https://github.com/hypabase/hypabase"
+Documentation = "https://hypabase.app/docs"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"hypabase/engine/core.py" = ["UP007"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["hypabase"]

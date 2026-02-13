@@ -1,0 +1,26 @@
+extends: existence
+message: "Avoid AI-typical filler: '%s'. Be direct."
+level: warning
+tokens:
+  - 'It is important to note that'
+  - 'It is worth noting that'
+  - "It's worth noting"
+  - "It's important to note"
+  - 'In this section, we will'
+  - 'In this guide, we will'
+  - "Let's dive in"
+  - "Let's get started"
+  - "Let's explore"
+  - 'As mentioned above'
+  - 'As mentioned earlier'
+  - 'As we discussed'
+  - 'In the following section'
+  - 'In the next section'
+  - 'Without further ado'
+  - 'At the end of the day'
+  - 'It should be mentioned'
+  - 'It goes without saying'
+  - 'Needless to say'
+  - 'This is because'
+  - 'As you can see'
+  - 'As we can see'

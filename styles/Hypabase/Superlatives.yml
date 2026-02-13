@@ -1,0 +1,19 @@
+extends: existence
+message: "Avoid superlative: '%s'. Let the reader judge."
+level: suggestion
+tokens:
+  - 'incredibly powerful'
+  - 'extremely powerful'
+  - 'very powerful'
+  - 'incredibly useful'
+  - 'extremely useful'
+  - 'very useful'
+  - 'incredibly easy'
+  - 'extremely easy'
+  - 'very easy'
+  - 'seamlessly'
+  - 'effortlessly'
+  - 'comprehensive and'
+  - 'robust and'
+  - 'powerful and flexible'
+  - 'simple yet powerful'

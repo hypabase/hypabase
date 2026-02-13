@@ -1,0 +1,128 @@
+site_name: Hypabase
+site_url: https://hypabase.app/docs
+site_description: A Python library for storing and querying n-ary relationships with provenance tracking. SQLite-backed, zero configuration.
+repo_url: https://github.com/hypabase/hypabase
+repo_name: hypabase/hypabase
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - content.code.copy
+    - content.tabs.link
+    - navigation.instant
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            show_root_heading: true
+            heading_level: 2
+            members_order: source
+            docstring_style: google
+            show_signature_annotations: true
+            separate_signature: true
+  - mike:
+      alias_type: symlink
+      canonical_version: latest
+  - llmstxt:
+      full_output: llms-full.txt
+      markdown_description: >
+        Hypabase is a Python library for storing and querying relationships
+        between entities. A single edge connects two or more nodes, every edge
+        tracks where it came from (source and confidence), and the whole graph
+        lives in a local SQLite file with no server or configuration. Use it to
+        build knowledge graphs, RAG pipelines, and structured agent memory.
+        Python 3.10+. uv add hypabase.
+      sections:
+        Getting Started:
+          - index.md: "Quick install and first hypergraph — go from zero to a working knowledge graph"
+          - getting-started.md: "Step-by-step setup with SQLite persistence, namespace isolation, and provenance"
+          - concepts.md: "Core mental model — hyperedges, provenance, vertex-set index"
+        Guides:
+          - guides/traversal.md: "Find neighbors, shortest paths, and multi-hop connections through hyperedges"
+          - guides/provenance.md: "Track where every relationship came from and how confident you are in it"
+          - guides/batch-operations.md: "Ingest thousands of nodes and edges efficiently with batch, upsert, and cascade delete"
+          - guides/cli.md: "Create nodes, edges, and run queries from the terminal without writing Python"
+          - guides/hif.md: "Import and export hypergraphs using the HIF interchange format"
+          - guides/mcp.md: "Set up the MCP server so AI agents in Claude Code, Claude Desktop, Cursor, or Windsurf can use Hypabase as structured memory"
+        Examples:
+          - examples/medical-kg.md: "Build a clinical knowledge graph with treatment events, provenance, and query patterns"
+          - examples/rag-extraction.md: "Extract structured relationships from documents and query them as a hypergraph"
+          - examples/agent-memory.md: "Give AI agents persistent structured memory that survives across sessions and conversations"
+          - examples/hybrid-vector.md: "Combine Hypabase relationship queries with vector similarity search for hybrid retrieval"
+        Comparisons:
+          - comparisons/vs-neo4j.md: "Architectural differences between Hypabase and Neo4j for n-ary relationships"
+          - comparisons/vs-vector-dbs.md: "How Hypabase and vector databases complement each other"
+          - comparisons/vs-mem0.md: "Architectural differences between Hypabase and Mem0 for agent memory"
+        API Reference:
+          - reference/client.md: "Complete Hypabase client API — every method with parameters, return types, and examples"
+          - reference/models.md: "Pydantic models for nodes, edges, incidences, stats, and validation results"
+          - reference/cli.md: "CLI command reference — init, node, edge, query, stats with all flags and options"
+
+extra:
+  version:
+    provider: mike
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Concepts: concepts.md
+  - Guides:
+      - Traversal: guides/traversal.md
+      - Provenance: guides/provenance.md
+      - Batch Operations: guides/batch-operations.md
+      - CLI Quickstart: guides/cli.md
+      - HIF Import/Export: guides/hif.md
+      - MCP Server: guides/mcp.md
+  - Examples:
+      - Medical Knowledge Graph: examples/medical-kg.md
+      - RAG Extraction Pipeline: examples/rag-extraction.md
+      - Agent Memory: examples/agent-memory.md
+      - Hybrid Vector Pattern: examples/hybrid-vector.md
+  - Comparisons:
+      - vs Neo4j: comparisons/vs-neo4j.md
+      - vs Vector DBs: comparisons/vs-vector-dbs.md
+      - vs Mem0: comparisons/vs-mem0.md
+  - API Reference:
+      - Client: reference/client.md
+      - Models: reference/models.md
+      - CLI Reference: reference/cli.md

@@ -1,0 +1,15 @@
+extends: existence
+message: "Hedging language: '%s'. State facts directly or remove."
+level: suggestion
+tokens:
+  - 'It is generally recommended'
+  - 'It is often considered'
+  - 'It might be helpful to'
+  - 'You may want to consider'
+  - 'It can be useful to'
+  - 'This can potentially'
+  - 'This could potentially'
+  - 'This is particularly useful'
+  - 'This is especially useful'
+  - 'This is extremely useful'
+  - 'This approach is particularly'

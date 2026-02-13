@@ -1,0 +1,18 @@
+extends: existence
+message: "Generic opener: '%s'. Lead with the actual content."
+level: warning
+tokens:
+  - '^In this guide'
+  - '^In this section'
+  - '^In this tutorial'
+  - '^In this document'
+  - '^In this page'
+  - '^This section covers'
+  - '^This guide covers'
+  - '^This page covers'
+  - '^This document covers'
+  - '^This section explains'
+  - '^This guide explains'
+  - '^Welcome to'
+  - '^In the world of'
+  - '^When it comes to'
