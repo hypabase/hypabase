@@ -57,7 +57,7 @@ hypabase-mcp = "hypabase.mcp:run_server"
 [project.urls]
 Homepage = "https://hypabase.app"
 Repository = "https://github.com/hypabase/hypabase"
-Documentation = "https://hypabase.app/docs"
+Documentation = "https://docs.hypabase.app"
 
 [build-system]
 requires = ["hatchling"]

@@ -60,3 +60,5 @@ See [Getting Started](getting-started.md) for the full walkthrough.
 - [Getting Started](getting-started.md) — install and build your first graph
 - [Concepts](concepts.md) — hypergraphs, provenance, and vertex-set indexing
 - [API Reference](reference/client.md) — full SDK documentation
+- [llms.txt](llms.txt) — LLM-friendly summary of the docs
+- [llms-full.txt](llms-full.txt) — full docs in plain text for LLM context

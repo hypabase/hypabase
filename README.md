@@ -96,7 +96,7 @@ sessions.nodes()  # → [s1]
 
 ## Documentation
 
-[hypabase.app/docs](https://hypabase.app/docs)
+[docs.hypabase.app](https://docs.hypabase.app)
 
 ## License
 
