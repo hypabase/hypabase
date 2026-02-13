@@ -1,79 +1,79 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-         <loc>https://hypabase.app/docs/latest/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/concepts/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/concepts/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/getting-started/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/getting-started/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/comparisons/vs-mem0/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/comparisons/vs-mem0/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/comparisons/vs-neo4j/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/comparisons/vs-neo4j/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/comparisons/vs-vector-dbs/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/comparisons/vs-vector-dbs/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/examples/agent-memory/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/examples/agent-memory/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/examples/hybrid-vector/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/examples/hybrid-vector/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/examples/medical-kg/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/examples/medical-kg/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/examples/rag-extraction/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/examples/rag-extraction/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/guides/batch-operations/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/guides/batch-operations/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/guides/cli/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/guides/cli/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/guides/hif/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/guides/hif/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/guides/mcp/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/guides/mcp/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/guides/provenance/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/guides/provenance/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/guides/traversal/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/guides/traversal/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/reference/cli/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/reference/cli/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/reference/client/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/reference/client/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
     <url>
-         <loc>https://hypabase.app/docs/latest/reference/models/</loc>
+         <loc>https://hypabase.github.io/hypabase/latest/reference/models/</loc>
          <lastmod>2026-02-13</lastmod>
     </url>
 </urlset>

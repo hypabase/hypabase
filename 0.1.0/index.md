@@ -36,7 +36,7 @@ hb.edges(containing=["patient_123"])
 hb.paths("dr_smith", "mercy_hospital")
 ```
 
-See [Getting Started](https://hypabase.app/docs/latest/getting-started/index.md) for the full walkthrough.
+See [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/index.md) for the full walkthrough.
 
 ## Features
 
@@ -50,13 +50,13 @@ See [Getting Started](https://hypabase.app/docs/latest/getting-started/index.md)
 
 ## Limitations
 
-- No semantic similarity or fuzzy search — pair with a vector database for that ([hybrid pattern](https://hypabase.app/docs/latest/examples/hybrid-vector/index.md))
+- No semantic similarity or fuzzy search — pair with a vector database for that ([hybrid pattern](https://hypabase.github.io/hypabase/latest/examples/hybrid-vector/index.md))
 - No declarative query language (e.g., Cypher, SPARQL) — use the Python SDK, CLI, or MCP tools
 - No built-in visualization
 - Early project — small community
 
 ## Next steps
 
-- [Getting Started](https://hypabase.app/docs/latest/getting-started/index.md) — install and build your first graph
-- [Concepts](https://hypabase.app/docs/latest/concepts/index.md) — hypergraphs, provenance, and vertex-set indexing
-- [API Reference](https://hypabase.app/docs/latest/reference/client/index.md) — full SDK documentation
+- [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/index.md) — install and build your first graph
+- [Concepts](https://hypabase.github.io/hypabase/latest/concepts/index.md) — hypergraphs, provenance, and vertex-set indexing
+- [API Reference](https://hypabase.github.io/hypabase/latest/reference/client/index.md) — full SDK documentation

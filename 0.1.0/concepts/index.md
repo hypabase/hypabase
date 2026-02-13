@@ -45,7 +45,7 @@ A node represents an entity. Every node has:
 - **`type`** — classification string (e.g., `"doctor"`, `"patient"`, `"medication"`)
 - **`properties`** — arbitrary key-value metadata
 
-Nodes are auto-created when referenced in an edge. If you create an edge referencing `"aspirin"` and no node with that ID exists, Hypabase creates it with `type="unknown"`. See [Getting Started](https://hypabase.app/docs/latest/getting-started/#create-nodes) for usage.
+Nodes are auto-created when referenced in an edge. If you create an edge referencing `"aspirin"` and no node with that ID exists, Hypabase creates it with `type="unknown"`. See [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/#create-nodes) for usage.
 
 ## Edges (hyperedges)
 
@@ -59,7 +59,7 @@ An edge represents a relationship between 2 or more nodes. Every edge has:
 - **`confidence`** — confidence score (0.0 to 1.0)
 - **`properties`** — arbitrary key-value metadata
 
-See [Getting Started](https://hypabase.app/docs/latest/getting-started/#create-a-hyperedge) for usage.
+See [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/#create-a-hyperedge) for usage.
 
 ### Node order
 
@@ -91,7 +91,7 @@ Provenance is not bolted-on metadata — it's part of the core data model. This 
 - Tracking which AI model or human produced each fact
 - Building audit trails
 
-See the [Provenance guide](https://hypabase.app/docs/latest/guides/provenance/index.md) for context managers, overrides, and querying.
+See the [Provenance guide](https://hypabase.github.io/hypabase/latest/guides/provenance/index.md) for context managers, overrides, and querying.
 
 ## Vertex-set lookup
 

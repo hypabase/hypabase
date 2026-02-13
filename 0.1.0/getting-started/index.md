@@ -162,9 +162,9 @@ hypabase stats
 
 ## Next steps
 
-- [Concepts](https://hypabase.app/docs/latest/concepts/index.md) — learn about hypergraphs, provenance, and vertex-set indexing
-- [Traversal guide](https://hypabase.app/docs/latest/guides/traversal/index.md) — neighbors, shortest paths, and multi-hop queries
-- [Provenance guide](https://hypabase.app/docs/latest/guides/provenance/index.md) — context managers, overrides, and source queries
-- [CLI Quickstart](https://hypabase.app/docs/latest/guides/cli/index.md) — build a knowledge graph from the terminal
-- [Examples](https://hypabase.app/docs/latest/examples/medical-kg/index.md) — real-world use cases with working code
-- [Comparisons](https://hypabase.app/docs/latest/comparisons/vs-neo4j/index.md) — how Hypabase compares to Neo4j, vector DBs, and Mem0
+- [Concepts](https://hypabase.github.io/hypabase/latest/concepts/index.md) — learn about hypergraphs, provenance, and vertex-set indexing
+- [Traversal guide](https://hypabase.github.io/hypabase/latest/guides/traversal/index.md) — neighbors, shortest paths, and multi-hop queries
+- [Provenance guide](https://hypabase.github.io/hypabase/latest/guides/provenance/index.md) — context managers, overrides, and source queries
+- [CLI Quickstart](https://hypabase.github.io/hypabase/latest/guides/cli/index.md) — build a knowledge graph from the terminal
+- [Examples](https://hypabase.github.io/hypabase/latest/examples/medical-kg/index.md) — real-world use cases with working code
+- [Comparisons](https://hypabase.github.io/hypabase/latest/comparisons/vs-neo4j/index.md) — how Hypabase compares to Neo4j, vector DBs, and Mem0

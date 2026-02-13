@@ -74,4 +74,4 @@ hypabase validate
 # Hypergraph is valid.
 ```
 
-See the [CLI Reference](https://hypabase.app/docs/latest/reference/cli/index.md) for all commands, flags, and options.
+See the [CLI Reference](https://hypabase.github.io/hypabase/latest/reference/cli/index.md) for all commands, flags, and options.

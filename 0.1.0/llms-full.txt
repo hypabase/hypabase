@@ -45,7 +45,7 @@ hb.edges(containing=["patient_123"])
 hb.paths("dr_smith", "mercy_hospital")
 ```
 
-See [Getting Started](https://hypabase.app/docs/latest/getting-started/index.md) for the full walkthrough.
+See [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/index.md) for the full walkthrough.
 
 ## Features
 
@@ -59,16 +59,16 @@ See [Getting Started](https://hypabase.app/docs/latest/getting-started/index.md)
 
 ## Limitations
 
-- No semantic similarity or fuzzy search — pair with a vector database for that ([hybrid pattern](https://hypabase.app/docs/latest/examples/hybrid-vector/index.md))
+- No semantic similarity or fuzzy search — pair with a vector database for that ([hybrid pattern](https://hypabase.github.io/hypabase/latest/examples/hybrid-vector/index.md))
 - No declarative query language (e.g., Cypher, SPARQL) — use the Python SDK, CLI, or MCP tools
 - No built-in visualization
 - Early project — small community
 
 ## Next steps
 
-- [Getting Started](https://hypabase.app/docs/latest/getting-started/index.md) — install and build your first graph
-- [Concepts](https://hypabase.app/docs/latest/concepts/index.md) — hypergraphs, provenance, and vertex-set indexing
-- [API Reference](https://hypabase.app/docs/latest/reference/client/index.md) — full SDK documentation
+- [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/index.md) — install and build your first graph
+- [Concepts](https://hypabase.github.io/hypabase/latest/concepts/index.md) — hypergraphs, provenance, and vertex-set indexing
+- [API Reference](https://hypabase.github.io/hypabase/latest/reference/client/index.md) — full SDK documentation
 
 # Getting Started
 
@@ -234,12 +234,12 @@ hypabase stats
 
 ## Next steps
 
-- [Concepts](https://hypabase.app/docs/latest/concepts/index.md) — learn about hypergraphs, provenance, and vertex-set indexing
-- [Traversal guide](https://hypabase.app/docs/latest/guides/traversal/index.md) — neighbors, shortest paths, and multi-hop queries
-- [Provenance guide](https://hypabase.app/docs/latest/guides/provenance/index.md) — context managers, overrides, and source queries
-- [CLI Quickstart](https://hypabase.app/docs/latest/guides/cli/index.md) — build a knowledge graph from the terminal
-- [Examples](https://hypabase.app/docs/latest/examples/medical-kg/index.md) — real-world use cases with working code
-- [Comparisons](https://hypabase.app/docs/latest/comparisons/vs-neo4j/index.md) — how Hypabase compares to Neo4j, vector DBs, and Mem0
+- [Concepts](https://hypabase.github.io/hypabase/latest/concepts/index.md) — learn about hypergraphs, provenance, and vertex-set indexing
+- [Traversal guide](https://hypabase.github.io/hypabase/latest/guides/traversal/index.md) — neighbors, shortest paths, and multi-hop queries
+- [Provenance guide](https://hypabase.github.io/hypabase/latest/guides/provenance/index.md) — context managers, overrides, and source queries
+- [CLI Quickstart](https://hypabase.github.io/hypabase/latest/guides/cli/index.md) — build a knowledge graph from the terminal
+- [Examples](https://hypabase.github.io/hypabase/latest/examples/medical-kg/index.md) — real-world use cases with working code
+- [Comparisons](https://hypabase.github.io/hypabase/latest/comparisons/vs-neo4j/index.md) — how Hypabase compares to Neo4j, vector DBs, and Mem0
 
 # Concepts
 
@@ -288,7 +288,7 @@ A node represents an entity. Every node has:
 - **`type`** — classification string (e.g., `"doctor"`, `"patient"`, `"medication"`)
 - **`properties`** — arbitrary key-value metadata
 
-Nodes are auto-created when referenced in an edge. If you create an edge referencing `"aspirin"` and no node with that ID exists, Hypabase creates it with `type="unknown"`. See [Getting Started](https://hypabase.app/docs/latest/getting-started/#create-nodes) for usage.
+Nodes are auto-created when referenced in an edge. If you create an edge referencing `"aspirin"` and no node with that ID exists, Hypabase creates it with `type="unknown"`. See [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/#create-nodes) for usage.
 
 ## Edges (hyperedges)
 
@@ -302,7 +302,7 @@ An edge represents a relationship between 2 or more nodes. Every edge has:
 - **`confidence`** — confidence score (0.0 to 1.0)
 - **`properties`** — arbitrary key-value metadata
 
-See [Getting Started](https://hypabase.app/docs/latest/getting-started/#create-a-hyperedge) for usage.
+See [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/#create-a-hyperedge) for usage.
 
 ### Node order
 
@@ -334,7 +334,7 @@ Provenance is not bolted-on metadata — it's part of the core data model. This 
 - Tracking which AI model or human produced each fact
 - Building audit trails
 
-See the [Provenance guide](https://hypabase.app/docs/latest/guides/provenance/index.md) for context managers, overrides, and querying.
+See the [Provenance guide](https://hypabase.github.io/hypabase/latest/guides/provenance/index.md) for context managers, overrides, and querying.
 
 ## Vertex-set lookup
 
@@ -812,7 +812,7 @@ hypabase validate
 # Hypergraph is valid.
 ```
 
-See the [CLI Reference](https://hypabase.app/docs/latest/reference/cli/index.md) for all commands, flags, and options.
+See the [CLI Reference](https://hypabase.github.io/hypabase/latest/reference/cli/index.md) for all commands, flags, and options.
 
 # HIF Import/Export
 
@@ -1688,7 +1688,7 @@ For RAG and knowledge systems, a strong architecture combines both:
 1. **Hypabase** for structured relationship queries — find connected entities with provenance
 1. **Combine** both contexts for the LLM
 
-See the [Hybrid Vector Pattern](https://hypabase.app/docs/latest/examples/hybrid-vector/index.md) for a complete implementation with code.
+See the [Hybrid Vector Pattern](https://hypabase.github.io/hypabase/latest/examples/hybrid-vector/index.md) for a complete implementation with code.
 
 ## Related research
 
@@ -1771,7 +1771,7 @@ paths = hb.paths("doc_quarterly", "tool_spreadsheet")
 
 ## Session-aware memory
 
-Hypabase tracks which session created each memory using provenance context blocks. See the [Agent Memory example](https://hypabase.app/docs/latest/examples/agent-memory/index.md) for a complete multi-session walkthrough.
+Hypabase tracks which session created each memory using provenance context blocks. See the [Agent Memory example](https://hypabase.github.io/hypabase/latest/examples/agent-memory/index.md) for a complete multi-session walkthrough.
 # API Reference
 
 # Client API
@@ -1886,7 +1886,9 @@ Returns:
 ### context
 
 ```
-context(*, source: str, confidence: float = 1.0) -> Generator[None, None, None]
+context(
+    *, source: str, confidence: float = 1.0
+) -> Generator[None, None, None]
 ```
 
 Set default provenance for all edges created within the block.
@@ -1910,7 +1912,9 @@ with hb.context(source="clinical_records", confidence=0.95):
 ### node
 
 ```
-node(id: str, *, type: str = 'unknown', **properties: Any) -> Node
+node(
+    id: str, *, type: str = "unknown", **properties: Any
+) -> Node
 ```
 
 Create or update a node.
@@ -2069,7 +2073,16 @@ Returns:
 ### edge
 
 ```
-edge(nodes: list[str], *, type: str, directed: bool = False, source: str | None = None, confidence: float | None = None, properties: dict[str, Any] | None = None, id: str | None = None) -> Edge
+edge(
+    nodes: list[str],
+    *,
+    type: str,
+    directed: bool = False,
+    source: str | None = None,
+    confidence: float | None = None,
+    properties: dict[str, Any] | None = None,
+    id: str | None = None,
+) -> Edge
 ```
 
 Create a hyperedge linking two or more nodes in one relationship.
@@ -2134,7 +2147,14 @@ Returns:
 ### edges
 
 ```
-edges(*, containing: list[str] | None = None, type: str | None = None, match_all: bool = False, source: str | None = None, min_confidence: float | None = None) -> list[Edge]
+edges(
+    *,
+    containing: list[str] | None = None,
+    type: str | None = None,
+    match_all: bool = False,
+    source: str | None = None,
+    min_confidence: float | None = None,
+) -> list[Edge]
 ```
 
 Query edges by contained nodes, type, source, and/or confidence.
@@ -2186,7 +2206,9 @@ Returns:
 ### has_edge_with_nodes
 
 ```
-has_edge_with_nodes(node_ids: set[str], edge_type: str | None = None) -> bool
+has_edge_with_nodes(
+    node_ids: set[str], edge_type: str | None = None
+) -> bool
 ```
 
 Check if an edge with the exact vertex set exists.
@@ -2271,7 +2293,9 @@ Returns:
 ### neighbors
 
 ```
-neighbors(node_id: str, *, edge_types: list[str] | None = None) -> list[Node]
+neighbors(
+    node_id: str, *, edge_types: list[str] | None = None
+) -> list[Node]
 ```
 
 Find all nodes connected to the given node via shared edges.
@@ -2294,7 +2318,13 @@ Returns:
 ### paths
 
 ```
-paths(start: str, end: str, *, max_hops: int = 5, edge_types: list[str] | None = None) -> list[list[str]]
+paths(
+    start: str,
+    end: str,
+    *,
+    max_hops: int = 5,
+    edge_types: list[str] | None = None,
+) -> list[list[str]]
 ```
 
 Find paths between two nodes through hyperedges.
@@ -2326,7 +2356,16 @@ paths = hb.paths("dr_smith", "mercy_hospital")
 ### find_paths
 
 ```
-find_paths(start_nodes: set[str], end_nodes: set[str], *, max_hops: int = 3, max_paths: int = 10, min_intersection: int = 1, edge_types: list[str] | None = None, direction_mode: str = 'undirected') -> list[list[Edge]]
+find_paths(
+    start_nodes: set[str],
+    end_nodes: set[str],
+    *,
+    max_hops: int = 3,
+    max_paths: int = 10,
+    min_intersection: int = 1,
+    edge_types: list[str] | None = None,
+    direction_mode: str = "undirected",
+) -> list[list[Edge]]
 ```
 
 Find paths between two groups of nodes through shared edges.
@@ -2354,7 +2393,9 @@ Returns:
 ### node_degree
 
 ```
-node_degree(node_id: str, *, edge_types: list[str] | None = None) -> int
+node_degree(
+    node_id: str, *, edge_types: list[str] | None = None
+) -> int
 ```
 
 Count how many edges touch a node.
@@ -2395,7 +2436,9 @@ Returns:
 ### hyperedge_degree
 
 ```
-hyperedge_degree(node_set: set[str], *, edge_type: str | None = None) -> int
+hyperedge_degree(
+    node_set: set[str], *, edge_type: str | None = None
+) -> int
 ```
 
 Add up the edge counts of every node in a set.
@@ -2466,7 +2509,15 @@ Returns:
 ### upsert_edge_by_vertex_set
 
 ```
-upsert_edge_by_vertex_set(node_ids: set[str], edge_type: str, properties: dict[str, Any] | None = None, *, source: str | None = None, confidence: float | None = None, merge_fn: Any = None) -> Edge
+upsert_edge_by_vertex_set(
+    node_ids: set[str],
+    edge_type: str,
+    properties: dict[str, Any] | None = None,
+    *,
+    source: str | None = None,
+    confidence: float | None = None,
+    merge_fn: Any = None,
+) -> Edge
 ```
 
 Create or update an edge matched by its exact set of nodes.
@@ -2493,7 +2544,9 @@ Returns:
 ### edges_of_node
 
 ```
-edges_of_node(node_id: str, *, edge_types: list[str] | None = None) -> list[Edge]
+edges_of_node(
+    node_id: str, *, edge_types: list[str] | None = None
+) -> list[Edge]
 ```
 
 Get all edges incident to a node.

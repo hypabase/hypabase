@@ -110,7 +110,9 @@ Returns:
 ### context
 
 ```
-context(*, source: str, confidence: float = 1.0) -> Generator[None, None, None]
+context(
+    *, source: str, confidence: float = 1.0
+) -> Generator[None, None, None]
 ```
 
 Set default provenance for all edges created within the block.
@@ -134,7 +136,9 @@ with hb.context(source="clinical_records", confidence=0.95):
 ### node
 
 ```
-node(id: str, *, type: str = 'unknown', **properties: Any) -> Node
+node(
+    id: str, *, type: str = "unknown", **properties: Any
+) -> Node
 ```
 
 Create or update a node.
@@ -293,7 +297,16 @@ Returns:
 ### edge
 
 ```
-edge(nodes: list[str], *, type: str, directed: bool = False, source: str | None = None, confidence: float | None = None, properties: dict[str, Any] | None = None, id: str | None = None) -> Edge
+edge(
+    nodes: list[str],
+    *,
+    type: str,
+    directed: bool = False,
+    source: str | None = None,
+    confidence: float | None = None,
+    properties: dict[str, Any] | None = None,
+    id: str | None = None,
+) -> Edge
 ```
 
 Create a hyperedge linking two or more nodes in one relationship.
@@ -358,7 +371,14 @@ Returns:
 ### edges
 
 ```
-edges(*, containing: list[str] | None = None, type: str | None = None, match_all: bool = False, source: str | None = None, min_confidence: float | None = None) -> list[Edge]
+edges(
+    *,
+    containing: list[str] | None = None,
+    type: str | None = None,
+    match_all: bool = False,
+    source: str | None = None,
+    min_confidence: float | None = None,
+) -> list[Edge]
 ```
 
 Query edges by contained nodes, type, source, and/or confidence.
@@ -410,7 +430,9 @@ Returns:
 ### has_edge_with_nodes
 
 ```
-has_edge_with_nodes(node_ids: set[str], edge_type: str | None = None) -> bool
+has_edge_with_nodes(
+    node_ids: set[str], edge_type: str | None = None
+) -> bool
 ```
 
 Check if an edge with the exact vertex set exists.
@@ -495,7 +517,9 @@ Returns:
 ### neighbors
 
 ```
-neighbors(node_id: str, *, edge_types: list[str] | None = None) -> list[Node]
+neighbors(
+    node_id: str, *, edge_types: list[str] | None = None
+) -> list[Node]
 ```
 
 Find all nodes connected to the given node via shared edges.
@@ -518,7 +542,13 @@ Returns:
 ### paths
 
 ```
-paths(start: str, end: str, *, max_hops: int = 5, edge_types: list[str] | None = None) -> list[list[str]]
+paths(
+    start: str,
+    end: str,
+    *,
+    max_hops: int = 5,
+    edge_types: list[str] | None = None,
+) -> list[list[str]]
 ```
 
 Find paths between two nodes through hyperedges.
@@ -550,7 +580,16 @@ paths = hb.paths("dr_smith", "mercy_hospital")
 ### find_paths
 
 ```
-find_paths(start_nodes: set[str], end_nodes: set[str], *, max_hops: int = 3, max_paths: int = 10, min_intersection: int = 1, edge_types: list[str] | None = None, direction_mode: str = 'undirected') -> list[list[Edge]]
+find_paths(
+    start_nodes: set[str],
+    end_nodes: set[str],
+    *,
+    max_hops: int = 3,
+    max_paths: int = 10,
+    min_intersection: int = 1,
+    edge_types: list[str] | None = None,
+    direction_mode: str = "undirected",
+) -> list[list[Edge]]
 ```
 
 Find paths between two groups of nodes through shared edges.
@@ -578,7 +617,9 @@ Returns:
 ### node_degree
 
 ```
-node_degree(node_id: str, *, edge_types: list[str] | None = None) -> int
+node_degree(
+    node_id: str, *, edge_types: list[str] | None = None
+) -> int
 ```
 
 Count how many edges touch a node.
@@ -619,7 +660,9 @@ Returns:
 ### hyperedge_degree
 
 ```
-hyperedge_degree(node_set: set[str], *, edge_type: str | None = None) -> int
+hyperedge_degree(
+    node_set: set[str], *, edge_type: str | None = None
+) -> int
 ```
 
 Add up the edge counts of every node in a set.
@@ -690,7 +733,15 @@ Returns:
 ### upsert_edge_by_vertex_set
 
 ```
-upsert_edge_by_vertex_set(node_ids: set[str], edge_type: str, properties: dict[str, Any] | None = None, *, source: str | None = None, confidence: float | None = None, merge_fn: Any = None) -> Edge
+upsert_edge_by_vertex_set(
+    node_ids: set[str],
+    edge_type: str,
+    properties: dict[str, Any] | None = None,
+    *,
+    source: str | None = None,
+    confidence: float | None = None,
+    merge_fn: Any = None,
+) -> Edge
 ```
 
 Create or update an edge matched by its exact set of nodes.
@@ -717,7 +768,9 @@ Returns:
 ### edges_of_node
 
 ```
-edges_of_node(node_id: str, *, edge_types: list[str] | None = None) -> list[Edge]
+edges_of_node(
+    node_id: str, *, edge_types: list[str] | None = None
+) -> list[Edge]
 ```
 
 Get all edges incident to a node.

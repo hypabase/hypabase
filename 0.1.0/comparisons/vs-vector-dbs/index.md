@@ -36,7 +36,7 @@ For RAG and knowledge systems, a strong architecture combines both:
 1. **Hypabase** for structured relationship queries — find connected entities with provenance
 1. **Combine** both contexts for the LLM
 
-See the [Hybrid Vector Pattern](https://hypabase.app/docs/latest/examples/hybrid-vector/index.md) for a complete implementation with code.
+See the [Hybrid Vector Pattern](https://hypabase.github.io/hypabase/latest/examples/hybrid-vector/index.md) for a complete implementation with code.
 
 ## Related research
 
