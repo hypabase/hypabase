@@ -75,4 +75,4 @@ paths = hb.paths("doc_quarterly", "tool_spreadsheet")
 
 ## Session-aware memory
 
-Hypabase tracks which session created each memory using provenance context blocks. See the [Agent Memory example](https://hypabase.github.io/hypabase/latest/examples/agent-memory/index.md) for a complete multi-session walkthrough.
+Hypabase tracks which session created each memory using provenance context blocks. See the [Agent Memory example](https://docs.hypabase.app/latest/examples/agent-memory/index.md) for a complete multi-session walkthrough.

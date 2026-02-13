@@ -7,35 +7,35 @@ Hypabase is a Python library for storing and querying relationships between enti
 
 ## Getting Started
 
-- [Home](https://hypabase.github.io/hypabase/latest/index.md): Quick install and first hypergraph — go from zero to a working knowledge graph
-- [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/index.md): Step-by-step setup with SQLite persistence, namespace isolation, and provenance
-- [Concepts](https://hypabase.github.io/hypabase/latest/concepts/index.md): Core mental model — hyperedges, provenance, vertex-set index
+- [Home](https://docs.hypabase.app/latest/index.md): Quick install and first hypergraph — go from zero to a working knowledge graph
+- [Getting Started](https://docs.hypabase.app/latest/getting-started/index.md): Step-by-step setup with SQLite persistence, namespace isolation, and provenance
+- [Concepts](https://docs.hypabase.app/latest/concepts/index.md): Core mental model — hyperedges, provenance, vertex-set index
 
 ## Guides
 
-- [Traversal](https://hypabase.github.io/hypabase/latest/guides/traversal/index.md): Find neighbors, shortest paths, and multi-hop connections through hyperedges
-- [Provenance](https://hypabase.github.io/hypabase/latest/guides/provenance/index.md): Track where every relationship came from and how confident you are in it
-- [Batch Operations](https://hypabase.github.io/hypabase/latest/guides/batch-operations/index.md): Ingest thousands of nodes and edges efficiently with batch, upsert, and cascade delete
-- [CLI Quickstart](https://hypabase.github.io/hypabase/latest/guides/cli/index.md): Create nodes, edges, and run queries from the terminal without writing Python
-- [HIF Import/Export](https://hypabase.github.io/hypabase/latest/guides/hif/index.md): Import and export hypergraphs using the HIF interchange format
-- [MCP Server](https://hypabase.github.io/hypabase/latest/guides/mcp/index.md): Set up the MCP server so AI agents in Claude Code, Claude Desktop, Cursor, or Windsurf can use Hypabase as structured memory
+- [Traversal](https://docs.hypabase.app/latest/guides/traversal/index.md): Find neighbors, shortest paths, and multi-hop connections through hyperedges
+- [Provenance](https://docs.hypabase.app/latest/guides/provenance/index.md): Track where every relationship came from and how confident you are in it
+- [Batch Operations](https://docs.hypabase.app/latest/guides/batch-operations/index.md): Ingest thousands of nodes and edges efficiently with batch, upsert, and cascade delete
+- [CLI Quickstart](https://docs.hypabase.app/latest/guides/cli/index.md): Create nodes, edges, and run queries from the terminal without writing Python
+- [HIF Import/Export](https://docs.hypabase.app/latest/guides/hif/index.md): Import and export hypergraphs using the HIF interchange format
+- [MCP Server](https://docs.hypabase.app/latest/guides/mcp/index.md): Set up the MCP server so AI agents in Claude Code, Claude Desktop, Cursor, or Windsurf can use Hypabase as structured memory
 
 ## Examples
 
-- [Medical Knowledge Graph](https://hypabase.github.io/hypabase/latest/examples/medical-kg/index.md): Build a clinical knowledge graph with treatment events, provenance, and query patterns
-- [RAG Extraction Pipeline](https://hypabase.github.io/hypabase/latest/examples/rag-extraction/index.md): Extract structured relationships from documents and query them as a hypergraph
-- [Agent Memory](https://hypabase.github.io/hypabase/latest/examples/agent-memory/index.md): Give AI agents persistent structured memory that survives across sessions and conversations
-- [Hybrid Vector Pattern](https://hypabase.github.io/hypabase/latest/examples/hybrid-vector/index.md): Combine Hypabase relationship queries with vector similarity search for hybrid retrieval
+- [Medical Knowledge Graph](https://docs.hypabase.app/latest/examples/medical-kg/index.md): Build a clinical knowledge graph with treatment events, provenance, and query patterns
+- [RAG Extraction Pipeline](https://docs.hypabase.app/latest/examples/rag-extraction/index.md): Extract structured relationships from documents and query them as a hypergraph
+- [Agent Memory](https://docs.hypabase.app/latest/examples/agent-memory/index.md): Give AI agents persistent structured memory that survives across sessions and conversations
+- [Hybrid Vector Pattern](https://docs.hypabase.app/latest/examples/hybrid-vector/index.md): Combine Hypabase relationship queries with vector similarity search for hybrid retrieval
 
 ## Comparisons
 
-- [vs Neo4j](https://hypabase.github.io/hypabase/latest/comparisons/vs-neo4j/index.md): Architectural differences between Hypabase and Neo4j for n-ary relationships
-- [vs Vector DBs](https://hypabase.github.io/hypabase/latest/comparisons/vs-vector-dbs/index.md): How Hypabase and vector databases complement each other
-- [vs Mem0](https://hypabase.github.io/hypabase/latest/comparisons/vs-mem0/index.md): Architectural differences between Hypabase and Mem0 for agent memory
+- [vs Neo4j](https://docs.hypabase.app/latest/comparisons/vs-neo4j/index.md): Architectural differences between Hypabase and Neo4j for n-ary relationships
+- [vs Vector DBs](https://docs.hypabase.app/latest/comparisons/vs-vector-dbs/index.md): How Hypabase and vector databases complement each other
+- [vs Mem0](https://docs.hypabase.app/latest/comparisons/vs-mem0/index.md): Architectural differences between Hypabase and Mem0 for agent memory
 
 ## API Reference
 
-- [Client](https://hypabase.github.io/hypabase/latest/reference/client/index.md): Complete Hypabase client API — every method with parameters, return types, and examples
-- [Models](https://hypabase.github.io/hypabase/latest/reference/models/index.md): Pydantic models for nodes, edges, incidences, stats, and validation results
-- [CLI Reference](https://hypabase.github.io/hypabase/latest/reference/cli/index.md): CLI command reference — init, node, edge, query, stats with all flags and options
+- [Client](https://docs.hypabase.app/latest/reference/client/index.md): Complete Hypabase client API — every method with parameters, return types, and examples
+- [Models](https://docs.hypabase.app/latest/reference/models/index.md): Pydantic models for nodes, edges, incidences, stats, and validation results
+- [CLI Reference](https://docs.hypabase.app/latest/reference/cli/index.md): CLI command reference — init, node, edge, query, stats with all flags and options
 

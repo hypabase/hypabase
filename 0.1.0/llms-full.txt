@@ -45,7 +45,7 @@ hb.edges(containing=["patient_123"])
 hb.paths("dr_smith", "mercy_hospital")
 ```
 
-See [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/index.md) for the full walkthrough.
+See [Getting Started](https://docs.hypabase.app/latest/getting-started/index.md) for the full walkthrough.
 
 ## Features
 
@@ -59,16 +59,18 @@ See [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started
 
 ## Limitations
 
-- No semantic similarity or fuzzy search — pair with a vector database for that ([hybrid pattern](https://hypabase.github.io/hypabase/latest/examples/hybrid-vector/index.md))
+- No semantic similarity or fuzzy search — pair with a vector database for that ([hybrid pattern](https://docs.hypabase.app/latest/examples/hybrid-vector/index.md))
 - No declarative query language (e.g., Cypher, SPARQL) — use the Python SDK, CLI, or MCP tools
 - No built-in visualization
 - Early project — small community
 
 ## Next steps
 
-- [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/index.md) — install and build your first graph
-- [Concepts](https://hypabase.github.io/hypabase/latest/concepts/index.md) — hypergraphs, provenance, and vertex-set indexing
-- [API Reference](https://hypabase.github.io/hypabase/latest/reference/client/index.md) — full SDK documentation
+- [Getting Started](https://docs.hypabase.app/latest/getting-started/index.md) — install and build your first graph
+- [Concepts](https://docs.hypabase.app/latest/concepts/index.md) — hypergraphs, provenance, and vertex-set indexing
+- [API Reference](https://docs.hypabase.app/latest/reference/client/index.md) — full SDK documentation
+- [llms.txt](https://docs.hypabase.app/latest/llms.txt) — LLM-friendly summary of the docs
+- [llms-full.txt](https://docs.hypabase.app/latest/llms-full.txt) — full docs in plain text for LLM context
 
 # Getting Started
 
@@ -234,12 +236,12 @@ hypabase stats
 
 ## Next steps
 
-- [Concepts](https://hypabase.github.io/hypabase/latest/concepts/index.md) — learn about hypergraphs, provenance, and vertex-set indexing
-- [Traversal guide](https://hypabase.github.io/hypabase/latest/guides/traversal/index.md) — neighbors, shortest paths, and multi-hop queries
-- [Provenance guide](https://hypabase.github.io/hypabase/latest/guides/provenance/index.md) — context managers, overrides, and source queries
-- [CLI Quickstart](https://hypabase.github.io/hypabase/latest/guides/cli/index.md) — build a knowledge graph from the terminal
-- [Examples](https://hypabase.github.io/hypabase/latest/examples/medical-kg/index.md) — real-world use cases with working code
-- [Comparisons](https://hypabase.github.io/hypabase/latest/comparisons/vs-neo4j/index.md) — how Hypabase compares to Neo4j, vector DBs, and Mem0
+- [Concepts](https://docs.hypabase.app/latest/concepts/index.md) — learn about hypergraphs, provenance, and vertex-set indexing
+- [Traversal guide](https://docs.hypabase.app/latest/guides/traversal/index.md) — neighbors, shortest paths, and multi-hop queries
+- [Provenance guide](https://docs.hypabase.app/latest/guides/provenance/index.md) — context managers, overrides, and source queries
+- [CLI Quickstart](https://docs.hypabase.app/latest/guides/cli/index.md) — build a knowledge graph from the terminal
+- [Examples](https://docs.hypabase.app/latest/examples/medical-kg/index.md) — real-world use cases with working code
+- [Comparisons](https://docs.hypabase.app/latest/comparisons/vs-neo4j/index.md) — how Hypabase compares to Neo4j, vector DBs, and Mem0
 
 # Concepts
 
@@ -288,7 +290,7 @@ A node represents an entity. Every node has:
 - **`type`** — classification string (e.g., `"doctor"`, `"patient"`, `"medication"`)
 - **`properties`** — arbitrary key-value metadata
 
-Nodes are auto-created when referenced in an edge. If you create an edge referencing `"aspirin"` and no node with that ID exists, Hypabase creates it with `type="unknown"`. See [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/#create-nodes) for usage.
+Nodes are auto-created when referenced in an edge. If you create an edge referencing `"aspirin"` and no node with that ID exists, Hypabase creates it with `type="unknown"`. See [Getting Started](https://docs.hypabase.app/latest/getting-started/#create-nodes) for usage.
 
 ## Edges (hyperedges)
 
@@ -302,7 +304,7 @@ An edge represents a relationship between 2 or more nodes. Every edge has:
 - **`confidence`** — confidence score (0.0 to 1.0)
 - **`properties`** — arbitrary key-value metadata
 
-See [Getting Started](https://hypabase.github.io/hypabase/latest/getting-started/#create-a-hyperedge) for usage.
+See [Getting Started](https://docs.hypabase.app/latest/getting-started/#create-a-hyperedge) for usage.
 
 ### Node order
 
@@ -334,7 +336,7 @@ Provenance is not bolted-on metadata — it's part of the core data model. This 
 - Tracking which AI model or human produced each fact
 - Building audit trails
 
-See the [Provenance guide](https://hypabase.github.io/hypabase/latest/guides/provenance/index.md) for context managers, overrides, and querying.
+See the [Provenance guide](https://docs.hypabase.app/latest/guides/provenance/index.md) for context managers, overrides, and querying.
 
 ## Vertex-set lookup
 
@@ -812,7 +814,7 @@ hypabase validate
 # Hypergraph is valid.
 ```
 
-See the [CLI Reference](https://hypabase.github.io/hypabase/latest/reference/cli/index.md) for all commands, flags, and options.
+See the [CLI Reference](https://docs.hypabase.app/latest/reference/cli/index.md) for all commands, flags, and options.
 
 # HIF Import/Export
 
@@ -1688,7 +1690,7 @@ For RAG and knowledge systems, a strong architecture combines both:
 1. **Hypabase** for structured relationship queries — find connected entities with provenance
 1. **Combine** both contexts for the LLM
 
-See the [Hybrid Vector Pattern](https://hypabase.github.io/hypabase/latest/examples/hybrid-vector/index.md) for a complete implementation with code.
+See the [Hybrid Vector Pattern](https://docs.hypabase.app/latest/examples/hybrid-vector/index.md) for a complete implementation with code.
 
 ## Related research
 
@@ -1771,7 +1773,7 @@ paths = hb.paths("doc_quarterly", "tool_spreadsheet")
 
 ## Session-aware memory
 
-Hypabase tracks which session created each memory using provenance context blocks. See the [Agent Memory example](https://hypabase.github.io/hypabase/latest/examples/agent-memory/index.md) for a complete multi-session walkthrough.
+Hypabase tracks which session created each memory using provenance context blocks. See the [Agent Memory example](https://docs.hypabase.app/latest/examples/agent-memory/index.md) for a complete multi-session walkthrough.
 # API Reference
 
 # Client API
