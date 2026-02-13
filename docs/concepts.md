@@ -1,3 +1,7 @@
+---
+description: "Core concepts behind Hypabase: hyperedges, n-ary relationships, provenance metadata, and vertex-set indexing."
+---
+
 # Concepts
 
 ## What is a hypergraph?

@@ -1,3 +1,7 @@
+---
+description: "Hypabase is a Python library for storing and querying n-ary relationships with provenance tracking. SQLite-backed, zero configuration."
+---
+
 # Hypabase
 
 Hypabase is a Python library for storing and querying relationships between entities. A single edge connects two or more nodes, every edge tracks where it came from (`source` and `confidence`), and the whole graph lives in a local SQLite file with no server or configuration.

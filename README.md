@@ -4,6 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/hypabase)](https://pypi.org/project/hypabase/)
 [![Python](https://img.shields.io/pypi/pyversions/hypabase)](https://pypi.org/project/hypabase/)
 [![License](https://img.shields.io/github/license/hypabase/hypabase)](LICENSE)
+[![Downloads](https://pepy.tech/badge/hypabase)](https://pepy.tech/project/hypabase)
 
 Hypabase is a Python library for storing and querying relationships between entities. A single edge connects two or more nodes, every edge tracks where it came from (`source` and `confidence`), and the whole graph lives in a local SQLite file with no server or configuration.
 
