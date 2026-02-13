@@ -1,5 +1,5 @@
 site_name: Hypabase
-site_url: https://hypabase.app/docs
+site_url: https://hypabase.github.io/hypabase/
 site_description: A Python library for storing and querying n-ary relationships with provenance tracking. SQLite-backed, zero configuration.
 repo_url: https://github.com/hypabase/hypabase
 repo_name: hypabase/hypabase
