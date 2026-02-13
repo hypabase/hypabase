@@ -1,3 +1,7 @@
+---
+description: "Install Hypabase and build your first hypergraph with SQLite persistence, namespace isolation, and provenance tracking."
+---
+
 # Getting Started
 
 ## Installation

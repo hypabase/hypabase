@@ -6,6 +6,7 @@ repo_name: hypabase/hypabase
 
 theme:
   name: material
+  custom_dir: overrides
   palette:
     - scheme: slate
       primary: black
