@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://docs.hypabase.app/sitemap.xml
+Sitemap: https://docs.hypabase.app/latest/sitemap.xml
