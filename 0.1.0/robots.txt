@@ -1,0 +1,37 @@
+# Hypabase — allow all crawlers including AI agents
+# https://hypabase.app/docs
+
+User-agent: *
+Allow: /
+
+# AI crawlers — explicitly permitted
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+Sitemap: https://hypabase.app/docs/sitemap.xml
+
+# LLM-optimized documentation index
+# https://llmstxt.org
+# llms.txt: https://hypabase.app/docs/llms.txt
+# llms-full.txt: https://hypabase.app/docs/llms-full.txt
