@@ -57,7 +57,7 @@ hb.edge(
 - Your data exceeds available memory
 - You need built-in visualization
 - You want managed cloud deployment (Neo4j Aura)
-- You need drivers in multiple languages
+- You need non-Python drivers (Java, JS, .NET, Go)
 
 ## When to use Hypabase
 

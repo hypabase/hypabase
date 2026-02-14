@@ -33,7 +33,7 @@ hb.edge(
 
 ## Provenance: tracking where facts come from
 
-Knowledge graphs often combine facts from multiple sources — manual entry, LLM extraction, APIs, databases, sensor data. Provenance lets you track the origin and reliability of each relationship.
+Knowledge graphs often combine facts from many sources — manual entry, LLM extraction, APIs, databases, sensor data. Provenance lets you track the origin and reliability of each relationship.
 
 ```python
 # Facts from clinical records (high confidence)
@@ -68,11 +68,11 @@ hb.sources()
 
 ## Why hyperedges matter for knowledge graphs
 
-Traditional knowledge graphs use triples: `(subject, predicate, object)`. This works for binary facts like "aspirin treats headache." But many facts are naturally n-ary.
+Traditional knowledge graphs use triples: `(subject, predicate, object)`. This works for binary facts like "aspirin treats headache." But many facts involve more than two entities.
 
 **A clinical event**: "Dr. Smith prescribed aspirin to Patient 123 for a headache at Mercy Hospital on 2024-01-15."
 
-With triples, you'd decompose this into multiple binary facts and lose the atomicity of the event. With a hyperedge, it's one relationship:
+With triples, you'd split this into binary facts, and the fact that they belong to one event becomes an inference, not a structure. A hyperedge stores this natively:
 
 ```python
 hb.edge(

@@ -22,7 +22,7 @@ Hypabase is built for **storage and querying with provenance**. It provides CRUD
 | **Namespace isolation** | None | `.database("name")` scoping |
 | **Data backend** | Pandas DataFrames | Python dicts + SQLite |
 | **MCP server** | None | 14 tools + 2 resources |
-| **HIF support** | Primary contributor to the format | Import/export supported |
+| **HIF support** | [Core contributor](https://github.com/pnnl/HyperNetX) to the format | Import/export supported |
 | **API style** | Analysis-oriented | CRUD-oriented |
 
 ## When to use HyperNetX
@@ -37,7 +37,7 @@ Hypabase is built for **storage and querying with provenance**. It provides CRUD
 - You need to persist hypergraphs to disk and query them later
 - You need provenance tracking on every edge
 - You're building an application that creates and queries hypergraphs over time
-- You need namespace isolation for multiple hypergraphs in one file
+- You need isolated namespaces for different domains or data sources
 - You're integrating with AI agents via MCP
 
 ## Using them together

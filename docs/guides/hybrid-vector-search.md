@@ -25,6 +25,18 @@ Query → Vector DB → semantically relevant entity IDs
 
 This works because vector search casts a wide net (fuzzy, semantic), and the hypergraph narrows it down to structured, provenance-tracked facts.
 
+## Comparison
+
+| Capability | Vector DB | Hypabase |
+|-----------|-----------|----------|
+| Semantic similarity search | Yes | No |
+| Structured relationships | No | Yes |
+| Multi-hop traversal | No | Yes |
+| N-ary facts (3+ entities) | No | Yes |
+| Provenance tracking | No | Yes |
+| Fuzzy natural language queries | Yes | No |
+| Confidence-based filtering | No | Yes |
+
 ## When to use this
 
 - RAG pipelines where you need both semantic retrieval and structured relationship context

@@ -27,7 +27,7 @@ G.add_edge("alice", "carol", type="coauthor")
 G.add_edge("bob", "carol", type="coauthor")
 ```
 
-This loses the information that all three were part of *one* collaboration. You can't distinguish "all three worked together" from "three separate pairs happened to collaborate."
+The grouping — the fact that all three were part of *one* collaboration — becomes implicit. You can't distinguish "all three worked together" from "three separate pairs happened to collaborate."
 
 **Bipartite/intermediate node** — add a node to represent the relationship:
 
@@ -74,7 +74,7 @@ One edge, three nodes, with provenance.
 
 ## When to use Hypabase
 
-- Your relationships involve 3+ entities and decomposing them into pairs loses information
+- Your relationships involve 3+ entities and you want the grouping stored in the edge itself
 - You need provenance tracking on relationships
 - You want automatic persistence without managing serialization
-- You need namespace isolation for multiple graphs in one file
+- You need isolated namespaces for different domains or data sources

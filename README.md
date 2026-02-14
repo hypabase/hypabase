@@ -44,7 +44,7 @@ hb.paths("dr_smith", "mercy_hospital")
 - **O(1) vertex-set lookup** — find edges by their exact node set
 - **Namespace isolation** — `.database("name")` for scoped views in a single file
 - **Provenance queries** — filter by `source` and `min_confidence`, summarize with `sources()`
-- **MCP server** — tools for AI agent integration
+- **MCP server** — 14 tools + 2 resources for AI agent integration
 - **CLI** — `hypabase init`, `hypabase node`, `hypabase edge`, `hypabase query`
 
 ## Provenance
@@ -93,9 +93,9 @@ sessions.nodes()  # -> [s1]
 
 In a regular graph, an edge connects exactly two nodes. In a hypergraph, a single edge — called a **hyperedge** — can connect any number of nodes at once.
 
-Consider a medical event: *Dr. Smith prescribes aspirin to Patient 123 for a headache at Mercy Hospital.* In a traditional graph, you'd decompose this into multiple binary edges (doctor-patient, doctor-drug, patient-hospital, ...) and lose the fact that these all belong to one event. In a hypergraph, it's one edge connecting all five entities. The relationship stays atomic.
+Consider a medical event: *Dr. Smith prescribes aspirin to Patient 123 for a headache at Mercy Hospital.* In a traditional graph, you'd split this into binary edges — doctor-patient, doctor-drug, patient-hospital — and the fact that they belong to one event becomes an inference, not a structure. A hypergraph stores this natively: one edge connecting all five entities.
 
-This matters because many real-world relationships are naturally n-ary. A paper has multiple authors. A transaction involves a buyer, a seller, a product, and a payment method. A chemical reaction involves multiple reagents and products. Forcing these into pairs loses information.
+This matters because real-world relationships often involve more than two things. A paper has three or four authors, not one. A transaction involves a buyer, a seller, a product, and a payment method. A chemical reaction has reagents and products on both sides. Forcing these into pairs loses information.
 
 ### Why provenance?
 
