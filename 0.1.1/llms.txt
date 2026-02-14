@@ -1,0 +1,43 @@
+# Hypabase
+
+> A Python hypergraph library with provenance and SQLite persistence.
+
+Hypabase is a Python hypergraph library with provenance and SQLite persistence. A single edge connects two or more nodes. Every edge tracks where it came from (source and confidence). Data persists to a local SQLite file automatically. Python 3.10+. uv add hypabase.
+
+
+## Getting Started
+
+- [Home](https://docs.hypabase.app/latest/index.md): Quick install and first hypergraph — go from zero to a working knowledge graph
+- [Getting Started](https://docs.hypabase.app/latest/getting-started/index.md): Step-by-step setup with SQLite persistence, namespace isolation, and provenance
+- [Concepts](https://docs.hypabase.app/latest/concepts/index.md): Core mental model — hyperedges, provenance, vertex-set index
+
+## Guides
+
+- [Traversal](https://docs.hypabase.app/latest/guides/traversal/index.md): Find neighbors, shortest paths, and multi-hop connections through hyperedges
+- [Provenance](https://docs.hypabase.app/latest/guides/provenance/index.md): Track where every relationship came from and how confident you are in it
+- [Batch Operations](https://docs.hypabase.app/latest/guides/batch-operations/index.md): Ingest thousands of nodes and edges efficiently with batch, upsert, and cascade delete
+- [Knowledge Graphs](https://docs.hypabase.app/latest/guides/knowledge-graphs/index.md): Build knowledge graphs with hyperedges and provenance tracking
+- [Hybrid Vector Search](https://docs.hypabase.app/latest/guides/hybrid-vector-search/index.md): Combine hypergraph queries with vector similarity search
+- [CLI Quickstart](https://docs.hypabase.app/latest/guides/cli/index.md): Create nodes, edges, and run queries from the terminal without writing Python
+- [HIF Import/Export](https://docs.hypabase.app/latest/guides/hif/index.md): Import and export hypergraphs using the HIF interchange format
+- [MCP Server](https://docs.hypabase.app/latest/guides/mcp/index.md): Set up the MCP server so AI agents in Claude Code, Claude Desktop, Cursor, or Windsurf can use Hypabase as structured memory
+
+## Examples
+
+- [Medical Knowledge Graph](https://docs.hypabase.app/latest/examples/medical-kg/index.md): Build a clinical knowledge graph with treatment events, provenance, and query patterns
+- [RAG Extraction Pipeline](https://docs.hypabase.app/latest/examples/rag-extraction/index.md): Extract structured relationships from documents and query them as a hypergraph
+- [Agent Memory](https://docs.hypabase.app/latest/examples/agent-memory/index.md): Give AI agents persistent structured memory that survives across sessions and conversations
+- [Hybrid Vector Pattern](https://docs.hypabase.app/latest/examples/hybrid-vector/index.md): Combine Hypabase relationship queries with vector similarity search for hybrid retrieval
+
+## Comparisons
+
+- [vs NetworkX](https://docs.hypabase.app/latest/comparisons/vs-networkx/index.md): Hypabase vs NetworkX — when you need hyperedges instead of binary edges
+- [vs HyperNetX](https://docs.hypabase.app/latest/comparisons/vs-hypernetx/index.md): Hypabase vs HyperNetX — storage and provenance vs analysis and visualization
+- [vs Neo4j](https://docs.hypabase.app/latest/comparisons/vs-neo4j/index.md): Hypabase vs Neo4j — native hyperedges vs property graph with reification
+
+## API Reference
+
+- [Client](https://docs.hypabase.app/latest/reference/client/index.md): Complete Hypabase client API — every method with parameters, return types, and examples
+- [Models](https://docs.hypabase.app/latest/reference/models/index.md): Pydantic models for nodes, edges, incidences, stats, and validation results
+- [CLI Reference](https://docs.hypabase.app/latest/reference/cli/index.md): CLI command reference — init, node, edge, query, stats with all flags and options
+
