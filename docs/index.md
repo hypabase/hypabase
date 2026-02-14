@@ -46,13 +46,6 @@ See [Getting Started](getting-started.md) for the full walkthrough.
 - **CLI** — `hypabase init`, `hypabase node`, `hypabase edge`, `hypabase query`
 - **Python SDK** — keyword args, method names read like English
 
-## Limitations
-
-- No semantic similarity or fuzzy search — pair with a vector database for that ([hybrid pattern](examples/hybrid-vector.md))
-- No declarative query language (e.g., Cypher, SPARQL) — use the Python SDK, CLI, or MCP tools
-- No built-in visualization
-- Early project — small community
-
 ## Next steps
 
 - [Getting Started](getting-started.md) — install and build your first graph
