@@ -17,7 +17,7 @@ uv add hypabase
 ```python
 from hypabase import Hypabase
 
-hb = Hypabase("my.db")  # local SQLite, zero config
+hb = Hypabase("my.db")
 
 # One edge connecting five entities
 hb.edge(

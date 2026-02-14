@@ -45,8 +45,9 @@ Hypabase is built for **storage and querying with provenance**. It provides CRUD
 HyperNetX and Hypabase can complement each other. Use Hypabase as the persistent storage and query layer, and export to HyperNetX (via HIF) when you need analysis or visualization.
 
 ```python
-import json
 from hypabase import Hypabase
+import hypernetx as hnx
+import json
 
 hb = Hypabase("my.db")
 
@@ -54,10 +55,10 @@ hb = Hypabase("my.db")
 hb.edge(["a", "b", "c"], type="collaboration", source="hr_system", confidence=0.9)
 hb.edge(["b", "c", "d"], type="collaboration", source="hr_system", confidence=0.85)
 
-# Export to HIF for HyperNetX analysis
+# Export to HIF and load in HyperNetX
 hif_data = hb.to_hif()
+with open("graph.hif.json", "w") as f:
+    json.dump(hif_data, f)
 
-# Load in HyperNetX
-import hypernetx as hnx
-# ... construct HNX hypergraph from HIF data for visualization and analysis
+H = hnx.from_hif("graph.hif.json")  # ready for analysis and visualization
 ```

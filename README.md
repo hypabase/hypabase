@@ -95,7 +95,7 @@ In a regular graph, an edge connects exactly two nodes. In a hypergraph, a singl
 
 Consider a medical event: *Dr. Smith prescribes aspirin to Patient 123 for a headache at Mercy Hospital.* In a traditional graph, you'd split this into binary edges — doctor-patient, doctor-drug, patient-hospital — and the fact that they belong to one event becomes an inference, not a structure. A hypergraph stores this natively: one edge connecting all five entities.
 
-This matters because real-world relationships often involve more than two things. A paper has three or four authors, not one. A transaction involves a buyer, a seller, a product, and a payment method. A chemical reaction has reagents and products on both sides. Forcing these into pairs loses information.
+This matters because real-world relationships often involve more than two things. A paper has three or four authors, not one. A transaction involves a buyer, a seller, a product, and a payment method. A chemical reaction has reagents and products on both sides. Forcing these into pairs means the grouping becomes implicit.
 
 ### Why provenance?
 
