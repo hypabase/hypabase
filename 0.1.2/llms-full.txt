@@ -1,0 +1,2927 @@
+# Hypabase
+
+> A Python hypergraph library with provenance and SQLite persistence.
+
+Hypabase is a Python hypergraph library with provenance and SQLite persistence. A single edge connects two or more nodes. Every edge tracks where it came from (source and confidence). Data persists to a local SQLite file automatically. Python 3.10+. uv add hypabase.
+
+
+# Getting Started
+
+# Hypabase
+
+A Python hypergraph library with provenance and SQLite persistence.
+
+## Install
+
+```
+uv add hypabase
+```
+
+## Quick example
+
+```
+from hypabase import Hypabase
+
+hb = Hypabase("my.db")
+
+# One edge connecting five entities
+hb.edge(
+    ["dr_smith", "patient_123", "aspirin", "headache", "mercy_hospital"],
+    type="treatment",
+    source="clinical_records",
+    confidence=0.95,
+)
+
+# Query edges involving a node
+hb.edges(containing=["patient_123"])
+
+# Find paths between entities
+hb.paths("dr_smith", "mercy_hospital")
+```
+
+See [Getting Started](https://docs.hypabase.app/latest/getting-started/index.md) for the full walkthrough.
+
+## Features
+
+- **N-ary hyperedges** — an edge connects 2+ nodes in a single relationship
+- **O(1) vertex-set lookup** — find edges by their exact node set
+- **Provenance** — every edge carries `source` and `confidence`
+- **Provenance queries** — filter by `source` and `min_confidence`, summarize with `sources()`
+- **SQLite persistence** — local-first, zero-config
+- **CLI** — `hypabase init`, `hypabase node`, `hypabase edge`, `hypabase query`
+- **Python SDK** — keyword args, method names read like English
+
+## Next steps
+
+- [Getting Started](https://docs.hypabase.app/latest/getting-started/index.md) — install and build your first graph
+- [Concepts](https://docs.hypabase.app/latest/concepts/index.md) — hypergraphs, provenance, and vertex-set indexing
+- [API Reference](https://docs.hypabase.app/latest/reference/client/index.md) — full SDK documentation
+- [llms.txt](https://docs.hypabase.app/latest/llms.txt) — LLM-friendly summary of the docs
+- [llms-full.txt](https://docs.hypabase.app/latest/llms-full.txt) — full docs in plain text for LLM context
+
+# Getting Started
+
+## Installation
+
+```
+uv add hypabase
+```
+
+```
+pip install hypabase
+```
+
+For CLI support:
+
+```
+uv add "hypabase[cli]"
+```
+
+## Your first hypergraph
+
+```
+from hypabase import Hypabase
+
+# File-backed database (persists to SQLite)
+hb = Hypabase("my.db")
+
+# Or in-memory for experiments
+hb = Hypabase()
+```
+
+### Create nodes
+
+```
+hb.node("dr_smith", type="doctor")
+hb.node("patient_123", type="patient")
+hb.node("aspirin", type="medication")
+hb.node("headache", type="condition")
+hb.node("mercy_hospital", type="hospital")
+```
+
+### Create a hyperedge
+
+A single edge connects all five entities atomically:
+
+```
+hb.edge(
+    ["dr_smith", "patient_123", "aspirin", "headache", "mercy_hospital"],
+    type="treatment",
+    source="clinical_records",
+    confidence=0.95,
+)
+```
+
+Note
+
+Nodes referenced in an edge are auto-created if they don't exist. You can skip explicit `node()` calls if you don't need to set node types or properties upfront.
+
+### Query edges
+
+```
+# All edges involving a patient
+edges = hb.edges(containing=["patient_123"])
+
+# Edges connecting both patient and medication
+edges = hb.edges(containing=["patient_123", "aspirin"], match_all=True)
+
+# Filter by type
+edges = hb.edges(type="treatment")
+
+# Filter by provenance
+edges = hb.edges(source="clinical_records")
+edges = hb.edges(min_confidence=0.9)
+```
+
+### Find paths
+
+```
+paths = hb.paths("dr_smith", "mercy_hospital")
+# [["dr_smith", ..., "mercy_hospital"]]
+```
+
+### Check stats
+
+```
+stats = hb.stats()
+print(f"Nodes: {stats.node_count}, Edges: {stats.edge_count}")
+```
+
+## Using provenance
+
+Every edge carries `source` and `confidence`. Set them per-edge or in bulk with a context manager:
+
+```
+# Per-edge
+hb.edge(
+    ["patient_123", "aspirin", "ibuprofen"],
+    type="drug_interaction",
+    source="clinical_decision_support_v3",
+    confidence=0.92,
+)
+
+# Bulk — all edges inside inherit source and confidence
+with hb.context(source="schema_analysis", confidence=0.9):
+    hb.edge(["a", "b"], type="fk")
+    hb.edge(["b", "c"], type="fk")
+
+# Query by provenance
+hb.edges(source="clinical_decision_support_v3")
+hb.edges(min_confidence=0.9)
+
+# Overview of all sources
+hb.sources()
+# [{"source": "clinical_decision_support_v3", "edge_count": 1, "avg_confidence": 0.92}, ...]
+```
+
+## File persistence
+
+```
+# Data persists across sessions
+with Hypabase("project.db") as hb:
+    hb.node("alice", type="user")
+    hb.edge(["alice", "task_1"], type="assigned")
+# Automatically saved and closed
+
+# Reopen later
+with Hypabase("project.db") as hb:
+    edges = hb.edges(containing=["alice"])  # data is still there
+```
+
+## Namespace isolation
+
+Separate data into independent namespaces within a single database file:
+
+```
+hb = Hypabase("project.db")
+
+# Scoped views — each namespace has its own nodes and edges
+drugs = hb.database("drugs")
+sessions = hb.database("sessions")
+
+drugs.node("aspirin", type="medication")
+sessions.node("session_1", type="session")
+
+# List all namespaces
+hb.databases()  # ["default", "drugs", "sessions"]
+```
+
+## CLI quickstart
+
+```
+# Initialize a database
+hypabase init
+
+# Add nodes and edges
+hypabase node dr_smith --type doctor
+hypabase edge dr_smith patient_123 aspirin --type treatment --source clinical --confidence 0.95
+
+# Query
+hypabase query --containing patient_123
+hypabase stats
+```
+
+## Next steps
+
+- [Concepts](https://docs.hypabase.app/latest/concepts/index.md) — learn about hypergraphs, provenance, and vertex-set indexing
+- [Traversal guide](https://docs.hypabase.app/latest/guides/traversal/index.md) — neighbors, shortest paths, and multi-hop queries
+- [Provenance guide](https://docs.hypabase.app/latest/guides/provenance/index.md) — context managers, overrides, and source queries
+- [CLI Quickstart](https://docs.hypabase.app/latest/guides/cli/index.md) — build a knowledge graph from the terminal
+- [Examples](https://docs.hypabase.app/latest/examples/medical-kg/index.md) — real-world use cases with working code
+- [Comparisons](https://docs.hypabase.app/latest/comparisons/vs-neo4j/index.md) — how Hypabase compares to Neo4j, vector DBs, and Mem0
+
+# Concepts
+
+## What is a hypergraph?
+
+A **hypergraph** generalizes a graph by allowing edges to connect any number of nodes, not only two. In a regular graph, an edge connects exactly two nodes (a pair). In a hypergraph, a single **hyperedge** can connect 2, 3, 5, or more nodes at once.
+
+This matters because real-world facts are often n-ary:
+
+- "Dr. Smith treated Patient 123 with Aspirin for a Headache at Mercy Hospital" — 5 entities, one fact
+- "The board approved a $5M budget for APAC expansion into Japan and Korea in Q3" — 6 entities, one decision
+- "BERT builds on the Transformer architecture using pretraining" — 3 entities, one relationship
+
+A hypergraph represents these directly. Each example above is a single hyperedge.
+
+### Hyperedges vs binary edges
+
+In a standard property graph (e.g., Neo4j), edges connect exactly two nodes. To model the board decision, you'd introduce an intermediate node:
+
+```
+(d:Decision)
+(board)-[:DECIDED]->(d)
+(d)-[:BUDGET]->(budget_5m)
+(d)-[:REGION]->(apac)
+(d)-[:COUNTRY]->(japan)
+(d)-[:COUNTRY]->(korea)
+(d)-[:TIMELINE]->(q3)
+```
+
+That's 6 binary edges and an intermediate node representing the decision.
+
+In Hypabase, a single hyperedge connects all participants:
+
+```
+hb.edge(
+    ["board", "budget_5m", "apac", "japan", "korea", "q3"],
+    type="budget_approval",
+)
+```
+
+## Nodes
+
+A node represents an entity. Every node has:
+
+- **`id`** — unique string identifier (e.g., `"dr_smith"`, `"patient_123"`)
+- **`type`** — classification string (e.g., `"doctor"`, `"patient"`, `"medication"`)
+- **`properties`** — arbitrary key-value metadata
+
+Nodes are auto-created when referenced in an edge. If you create an edge referencing `"aspirin"` and no node with that ID exists, Hypabase creates it with `type="unknown"`. See [Getting Started](https://docs.hypabase.app/latest/getting-started/#create-nodes) for usage.
+
+## Edges (hyperedges)
+
+An edge represents a relationship between 2 or more nodes. Every edge has:
+
+- **`id`** — unique identifier (auto-generated UUID if not specified)
+- **`type`** — relationship type (e.g., `"treatment"`, `"concept_link"`)
+- **`incidences`** — ordered list of node participations
+- **`directed`** — whether the edge has direction (tail/head semantics)
+- **`source`** — provenance source string
+- **`confidence`** — confidence score (0.0 to 1.0)
+- **`properties`** — arbitrary key-value metadata
+
+See [Getting Started](https://docs.hypabase.app/latest/getting-started/#create-a-hyperedge) for usage.
+
+### Node order
+
+The `position` column in the incidence table preserves node order. The order you pass nodes is the order they're stored. This matters for directed edges and for domain-specific semantics where position carries meaning.
+
+### Directed edges
+
+When `directed=True`, the first node is the **tail** and the last node is the **head**:
+
+```
+hb.edge(
+    ["cause", "intermediate", "effect"],
+    type="causal_chain",
+    directed=True,
+)
+```
+
+## Provenance
+
+Every edge carries two provenance fields:
+
+- **`source`** — a string identifying where the relationship came from (e.g., `"clinical_records"`, `"gpt-4o_extraction"`, `"user_input"`)
+- **`confidence`** — a float between 0.0 and 1.0 representing certainty
+
+Provenance is not bolted-on metadata — it's part of the core data model. This enables:
+
+- Filtering edges by source or confidence threshold
+- Aggregating reliability across sources
+- Tracking which AI model or human produced each fact
+- Building audit trails
+
+See the [Provenance guide](https://docs.hypabase.app/latest/guides/provenance/index.md) for context managers, overrides, and querying.
+
+## Vertex-set lookup
+
+Hypabase maintains a SHA-256 hash index over the node sets of all edges. This enables **O(1) exact vertex-set lookup** — given a set of node IDs, find all edges that connect exactly those nodes (order-independent):
+
+```
+edges = hb.edges_by_vertex_set(["dr_smith", "patient_123", "aspirin"])
+```
+
+The query answers: "does a relationship connect exactly these entities?"
+
+## Storage
+
+Hypabase uses SQLite with WAL mode and foreign keys enabled. The database has four tables:
+
+| Table              | Purpose                                                           |
+| ------------------ | ----------------------------------------------------------------- |
+| `nodes`            | Entity storage (id, type, properties)                             |
+| `edges`            | Relationship metadata (id, type, source, confidence, properties)  |
+| `incidences`       | Junction table linking edges to nodes with position and direction |
+| `vertex_set_index` | SHA-256 hash index for O(1) exact vertex-set lookup               |
+
+The storage engine encapsulates all SQL. The client API never exposes raw queries.
+# Guides
+
+# Traversal
+
+Hypabase provides methods for navigating the hypergraph: finding neighbors, discovering paths, and querying incident edges.
+
+## Neighbors
+
+Find all nodes connected to a given node through any shared edge:
+
+```
+neighbors = hb.neighbors("patient_123")
+# Returns list of Node objects connected to patient_123
+```
+
+### Filter by edge type
+
+```
+# Only neighbors connected via treatment edges
+neighbors = hb.neighbors("patient_123", edge_types=["treatment"])
+```
+
+The result excludes the query node itself.
+
+## Paths
+
+Find paths between two nodes through hyperedges:
+
+```
+paths = hb.paths("dr_smith", "mercy_hospital")
+# [["dr_smith", "patient_123", "mercy_hospital"], ...]
+```
+
+Each path is a list of node IDs from start to end.
+
+### Limit hop count
+
+```
+# Only short paths (up to 3 hops)
+paths = hb.paths("dr_smith", "mercy_hospital", max_hops=3)
+```
+
+The default `max_hops` is 5.
+
+### Filter by edge type
+
+```
+# Only traverse treatment and diagnosis edges
+paths = hb.paths(
+    "dr_smith",
+    "mercy_hospital",
+    edge_types=["treatment", "diagnosis"],
+)
+```
+
+## Advanced path finding
+
+`find_paths()` provides intersection-constrained path finding — it returns paths as sequences of edges rather than node IDs, and supports set-based start/end nodes:
+
+```
+paths = hb.find_paths(
+    start_nodes={"dr_smith", "dr_jones"},
+    end_nodes={"mercy_hospital"},
+    max_hops=3,
+    max_paths=10,
+    edge_types=["treatment"],
+)
+# Returns list of list[Edge]
+```
+
+Parameters:
+
+- `start_nodes` — set of possible start node IDs
+- `end_nodes` — set of possible end node IDs
+- `max_hops` — longest path length allowed (default 3)
+- `max_paths` — cap on paths returned (default 10)
+- `min_intersection` — required node overlap between consecutive edges (default 1)
+- `edge_types` — filter to specific edge types
+- `direction_mode` — `"undirected"` (default), `"forward"`, or `"backward"`
+
+## Edges of a node
+
+Get all edges incident to a specific node:
+
+```
+edges = hb.edges_of_node("patient_123")
+# All edges that include patient_123
+```
+
+Filter by edge type:
+
+```
+edges = hb.edges_of_node("patient_123", edge_types=["treatment"])
+```
+
+## Graph metrics
+
+### Node degree
+
+Number of edges incident to a node:
+
+```
+degree = hb.node_degree("patient_123")
+```
+
+Filter by edge type:
+
+```
+degree = hb.node_degree("patient_123", edge_types=["treatment"])
+```
+
+### Edge cardinality
+
+Number of unique nodes in an edge:
+
+```
+cardinality = hb.edge_cardinality(edge_id)
+# 5 for a 5-node hyperedge
+```
+
+### Hyperedge degree
+
+Sum of vertex degrees of nodes in a given set:
+
+```
+degree = hb.hyperedge_degree({"dr_smith", "patient_123"})
+```
+
+# Provenance
+
+Every edge in Hypabase carries two provenance fields: `source` and `confidence`. These are first-class parts of the data model, not bolted-on metadata.
+
+## Setting provenance per-edge
+
+```
+hb.edge(
+    ["patient_123", "aspirin", "ibuprofen"],
+    type="drug_interaction",
+    source="clinical_decision_support_v3",
+    confidence=0.92,
+)
+```
+
+If omitted, `source` defaults to `"unknown"` and `confidence` defaults to `1.0`.
+
+## Context manager for bulk provenance
+
+Use `hb.context()` to set default provenance for a block of operations:
+
+```
+with hb.context(source="clinical_records", confidence=0.95):
+    hb.edge(
+        ["dr_smith", "patient_a", "aspirin", "headache", "mercy_hospital"],
+        type="treatment",
+    )
+    hb.edge(
+        ["dr_jones", "patient_b", "ibuprofen", "fever"],
+        type="treatment",
+    )
+# Both edges get source="clinical_records", confidence=0.95
+```
+
+### Override within a context
+
+Per-edge values override the context defaults:
+
+```
+with hb.context(source="extraction", confidence=0.8):
+    hb.edge(["a", "b"], type="x")                    # confidence=0.8
+    hb.edge(["c", "d"], type="y", confidence=0.99)    # confidence=0.99
+```
+
+### Nested contexts
+
+Contexts can nest. The innermost context wins:
+
+```
+with hb.context(source="system_a", confidence=0.9):
+    hb.edge(["a", "b"], type="x")  # source="system_a"
+
+    with hb.context(source="system_b", confidence=0.7):
+        hb.edge(["c", "d"], type="y")  # source="system_b"
+
+    hb.edge(["e", "f"], type="z")  # source="system_a" (restored)
+```
+
+## Querying by provenance
+
+### Filter by source
+
+```
+edges = hb.edges(source="clinical_records")
+```
+
+### Filter by confidence threshold
+
+```
+high_confidence = hb.edges(min_confidence=0.9)
+```
+
+### Combine provenance with other filters
+
+```
+edges = hb.edges(
+    containing=["patient_123"],
+    source="clinical_records",
+    min_confidence=0.9,
+)
+```
+
+## Aggregating sources
+
+The `sources()` method provides an overview of all provenance sources:
+
+```
+sources = hb.sources()
+# [
+#     {"source": "clinical_records", "edge_count": 2, "avg_confidence": 0.95},
+#     {"source": "lab_results", "edge_count": 1, "avg_confidence": 0.88},
+# ]
+```
+
+Each entry includes:
+
+- `source` — the source string
+- `edge_count` — number of edges from this source
+- `avg_confidence` — mean confidence across all edges from this source
+
+## Use cases
+
+### Multi-source knowledge graphs
+
+Track which AI model, document, or human produced each fact:
+
+```
+with hb.context(source="gpt-4o_extraction", confidence=0.85):
+    hb.edge(["transformer", "attention", "nlp"], type="concept_link")
+
+with hb.context(source="manual_review", confidence=0.99):
+    hb.edge(["transformer", "attention", "nlp"], type="concept_link_verified")
+```
+
+### Audit trails
+
+Know exactly which source contributed each relationship:
+
+```
+# What did the legal review say?
+legal_edges = hb.edges(source="legal_review")
+
+# What do we trust?
+trusted = hb.edges(min_confidence=0.85)
+
+# What's unreliable?
+all_sources = hb.sources()
+low_quality = [s for s in all_sources if s["avg_confidence"] < 0.7]
+```
+
+### Confidence-based retrieval
+
+In RAG pipelines, retrieve only high-confidence relationships:
+
+```
+edges = hb.edges(
+    containing=["query_entity"],
+    min_confidence=0.8,
+)
+# Only facts we're confident about end up in the LLM context
+```
+
+# Batch Operations
+
+## Batch persistence
+
+By default, Hypabase auto-saves to SQLite after every mutation. For bulk inserts, use `batch()` to defer persistence until the block exits:
+
+```
+with hb.batch():
+    for i in range(1000):
+        hb.node(f"entity_{i}", type="item")
+        hb.edge([f"entity_{i}", "catalog"], type="belongs_to")
+# Single save at the end, not 2000 saves
+```
+
+Note
+
+`batch()` provides batched persistence, not transaction rollback. If an exception occurs mid-batch, partial in-memory changes remain and persist when the batch exits.
+
+### Nested batches
+
+Batches can nest. Only the outermost batch triggers a save:
+
+```
+with hb.batch():
+    hb.node("a", type="x")
+    with hb.batch():
+        hb.node("b", type="x")
+        hb.node("c", type="x")
+    # No save yet — inner batch exited but outer batch is still open
+    hb.node("d", type="x")
+# Save happens here — outermost batch exits
+```
+
+## Upsert by vertex set
+
+`upsert_edge_by_vertex_set()` finds an existing edge by its exact set of nodes, or creates a new one. This is useful for idempotent ingestion:
+
+```
+# First call creates the edge
+edge = hb.upsert_edge_by_vertex_set(
+    {"dr_smith", "patient_123", "aspirin"},
+    edge_type="treatment",
+    properties={"date": "2025-01-15"},
+    source="clinical_records",
+    confidence=0.95,
+)
+
+# Second call finds the existing edge (same vertex set)
+edge = hb.upsert_edge_by_vertex_set(
+    {"dr_smith", "patient_123", "aspirin"},
+    edge_type="treatment",
+    properties={"date": "2025-01-16"},  # updates properties
+)
+```
+
+### Custom merge function
+
+Pass a `merge_fn` to control how the upsert merges properties:
+
+```
+def merge_latest(existing_props, new_props):
+    return {**existing_props, **new_props}
+
+hb.upsert_edge_by_vertex_set(
+    {"a", "b"},
+    edge_type="link",
+    properties={"count": 2},
+    merge_fn=merge_latest,
+)
+```
+
+## Cascade delete
+
+Delete a node and all its incident edges in one call:
+
+```
+node_deleted, edges_deleted = hb.delete_node_cascade("patient_123")
+# node_deleted: True if the node existed
+# edges_deleted: number of edges removed
+```
+
+Compare with `delete_node()`, which only removes the node itself:
+
+```
+hb.delete_node("patient_123")  # Removes the node, edges remain (with dangling references)
+```
+
+## Bulk ingestion pattern
+
+Combine `batch()` and `context()` for efficient bulk loading:
+
+```
+with hb.batch():
+    with hb.context(source="data_import_v2", confidence=0.9):
+        for record in records:
+            hb.edge(
+                record["entities"],
+                type=record["relation_type"],
+                properties=record.get("metadata", {}),
+            )
+```
+
+This gives you:
+
+- Single disk write at the end (`batch`)
+- Consistent provenance across all edges (`context`)
+- Auto-created nodes for any new entity IDs
+
+# Building Knowledge Graphs
+
+A knowledge graph is a structured collection of entities and the relationships between them. Hypabase is a natural fit for building knowledge graphs because hyperedges let you represent complex relationships without decomposing them into pairs, and provenance tracking tells you where each fact came from.
+
+## Modeling entities and relationships
+
+In Hypabase, entities are **nodes** and relationships are **edges** (hyperedges). Both carry a `type` for classification and optional `properties` for metadata.
+
+```
+from hypabase import Hypabase
+
+hb = Hypabase("knowledge.db")
+
+# Create typed entities
+hb.node("aspirin", type="drug", dosage_form="tablet")
+hb.node("ibuprofen", type="drug", dosage_form="tablet")
+hb.node("headache", type="condition")
+hb.node("dr_smith", type="doctor", specialty="neurology")
+hb.node("patient_123", type="patient")
+```
+
+Nodes are also auto-created when you reference them in an edge, so you can skip explicit node creation and let the graph grow organically:
+
+```
+# These nodes are created automatically if they don't exist
+hb.edge(
+    ["dr_smith", "patient_123", "aspirin", "headache"],
+    type="treatment",
+    source="clinical_records",
+    confidence=0.95,
+)
+```
+
+## Provenance: tracking where facts come from
+
+Knowledge graphs often combine facts from many sources — manual entry, LLM extraction, APIs, databases, sensor data. Provenance lets you track the origin and reliability of each relationship.
+
+```
+# Facts from clinical records (high confidence)
+with hb.context(source="clinical_records", confidence=0.95):
+    hb.edge(["aspirin", "headache"], type="treats")
+    hb.edge(["ibuprofen", "headache"], type="treats")
+
+# Facts extracted by an LLM (lower confidence)
+with hb.context(source="llm_extraction_gpt4", confidence=0.7):
+    hb.edge(["aspirin", "ibuprofen"], type="drug_interaction")
+
+# Facts from a structured database (high confidence)
+with hb.context(source="drugbank_api", confidence=0.99):
+    hb.edge(["aspirin", "ibuprofen", "gi_bleeding"], type="combined_risk")
+```
+
+Later, you can filter by provenance:
+
+```
+# Only facts from clinical records
+hb.edges(source="clinical_records")
+
+# Only high-confidence facts
+hb.edges(min_confidence=0.9)
+
+# See all sources and their stats
+hb.sources()
+# [{'source': 'clinical_records', 'edge_count': 2, 'avg_confidence': 0.95},
+#  {'source': 'llm_extraction_gpt4', 'edge_count': 1, 'avg_confidence': 0.7},
+#  {'source': 'drugbank_api', 'edge_count': 1, 'avg_confidence': 0.99}]
+```
+
+## Why hyperedges matter for knowledge graphs
+
+Traditional knowledge graphs use triples: `(subject, predicate, object)`. This works for binary facts like "aspirin treats headache." But many facts involve more than two entities.
+
+**A clinical event**: "Dr. Smith prescribed aspirin to Patient 123 for a headache at Mercy Hospital on 2024-01-15."
+
+With triples, you'd split this into binary facts, and the fact that they belong to one event becomes an inference, not a structure. A hyperedge stores this natively:
+
+```
+hb.edge(
+    ["dr_smith", "patient_123", "aspirin", "headache", "mercy_hospital"],
+    type="prescription",
+    source="ehr_system",
+    confidence=0.99,
+    properties={"date": "2024-01-15"},
+)
+```
+
+All five entities are connected by a single edge. Querying for any one of them returns the full context.
+
+## Querying the knowledge graph
+
+```
+# Find all treatments involving a patient
+hb.edges(containing=["patient_123"], type="treatment")
+
+# Find all edges connecting two specific entities
+hb.edges(containing=["aspirin", "ibuprofen"], match_all=True)
+
+# Find the exact edge connecting a specific set of entities
+hb.edges_by_vertex_set(["aspirin", "ibuprofen", "gi_bleeding"])
+
+# Find how two entities are connected
+hb.paths("dr_smith", "mercy_hospital")
+
+# Find all neighbors of an entity
+hb.neighbors("aspirin")
+```
+
+## Organizing with namespaces
+
+For larger knowledge graphs, use namespaces to isolate different domains or data sources within a single file:
+
+```
+hb = Hypabase("knowledge.db")
+
+drugs = hb.database("drugs")
+clinical = hb.database("clinical")
+
+drugs.edge(["aspirin", "ibuprofen"], type="interaction", source="drugbank")
+clinical.edge(["dr_smith", "patient_123", "aspirin"], type="prescription", source="ehr")
+
+# Each namespace is independent
+drugs.stats()     # only drug relationships
+clinical.stats()  # only clinical relationships
+```
+
+## Next steps
+
+- [Medical Knowledge Graph example](https://docs.hypabase.app/latest/examples/medical-kg/index.md) — a complete worked example with clinical data
+- [RAG Extraction Pipeline example](https://docs.hypabase.app/latest/examples/rag-extraction/index.md) — extracting relationships from documents into a knowledge graph
+- [Provenance guide](https://docs.hypabase.app/latest/guides/provenance/index.md) — deeper dive into provenance tracking
+- [Batch Operations guide](https://docs.hypabase.app/latest/guides/batch-operations/index.md) — efficient bulk ingestion for larger graphs
+
+# Hybrid Vector Search
+
+Vector databases and hypergraph libraries solve different problems. Vector search finds things that are semantically similar. Hypabase finds things that are structurally connected. Combining them gives you both.
+
+## Why combine them
+
+Vector databases (Pinecone, Qdrant, Weaviate, ChromaDB, pgvector) store embeddings and answer "what resembles X?" They're good at fuzzy semantic retrieval — finding documents about a topic even when the exact words differ.
+
+Hypabase stores explicit relationships and answers "what's connected to X, through which relationships, with what provenance?" It's good at structured traversal — finding the entities connected to a given entity and the chain of relationships between them.
+
+Neither one replaces the other. A vector search can find relevant entities, and a hypergraph traversal can find what those entities are connected to. Together, they give an LLM richer context than either could alone.
+
+## The pattern
+
+```
+Query → Vector DB → semantically relevant entity IDs
+     → Hypabase  → structurally connected entities + provenance
+     → Merge     → enriched context for the LLM
+```
+
+1. **Vector retrieval** — embed the query and find the top-k similar entities or chunks
+1. **Hypergraph expansion** — take those entity IDs and query Hypabase for their neighbors, shared edges, and paths
+1. **Provenance filtering** — use `source` and `min_confidence` to keep only trusted relationships
+1. **Combine** — merge both result sets into the LLM prompt
+
+This works because vector search casts a wide net (fuzzy, semantic), and the hypergraph narrows it down to structured, provenance-tracked facts.
+
+## Comparison
+
+| Capability                     | Vector DB | Hypabase |
+| ------------------------------ | --------- | -------- |
+| Semantic similarity search     | Yes       | No       |
+| Structured relationships       | No        | Yes      |
+| Multi-hop traversal            | No        | Yes      |
+| N-ary facts (3+ entities)      | No        | Yes      |
+| Provenance tracking            | No        | Yes      |
+| Fuzzy natural language queries | Yes       | No       |
+| Confidence-based filtering     | No        | Yes      |
+
+## When to use this
+
+- RAG pipelines where you need both semantic retrieval and structured relationship context
+- Knowledge systems where entities have both text descriptions (vectorizable) and explicit connections (graph-queryable)
+- Any application where "related to" (semantic) and "connected to" (structural) are both useful signals
+
+## Implementation
+
+See the [Hybrid Vector Pattern example](https://docs.hypabase.app/latest/examples/hybrid-vector/index.md) for a complete worked implementation with code.
+
+# CLI Quickstart
+
+Build a knowledge graph from the command line — no Python needed.
+
+## Install
+
+```
+uv add "hypabase[cli]"
+```
+
+## Build a graph in five commands
+
+Start with an empty database and populate it step by step:
+
+```
+# 1. Initialize the database
+hypabase init
+# Initialized Hypabase database at hypabase.db
+
+# 2. Create nodes
+hypabase node dr_smith --type doctor
+hypabase node patient_123 --type patient
+hypabase node aspirin --type medication
+
+# 3. Create a hyperedge connecting all three
+hypabase edge dr_smith patient_123 aspirin --type treatment --source clinical --confidence 0.95
+
+# 4. Query edges containing a node
+hypabase query --containing patient_123
+
+# 5. Check database stats
+hypabase stats
+# Nodes: 3  Edges: 1
+```
+
+## Work with a specific database file
+
+All commands default to `hypabase.db`. Use `--db` to target a different file:
+
+```
+hypabase --db research.db init
+hypabase --db research.db node paper_1 --type paper
+hypabase --db research.db edge paper_1 transformer bert --type builds_on
+hypabase --db research.db stats
+```
+
+## Query with filters
+
+Combine flags to narrow results:
+
+```
+# Edges containing both nodes
+hypabase query --containing patient_123 --containing aspirin --match-all
+
+# Edges of a specific type
+hypabase query --type treatment
+```
+
+## Export and import
+
+Move hypergraphs between databases using HIF (Hypergraph Interchange Format):
+
+```
+hypabase export-hif backup.json
+hypabase --db copy.db import-hif backup.json
+```
+
+## Validate consistency
+
+Check that the database has no orphaned references:
+
+```
+hypabase validate
+# Hypergraph is valid.
+```
+
+See the [CLI Reference](https://docs.hypabase.app/latest/reference/cli/index.md) for all commands, flags, and options.
+
+# HIF Import/Export
+
+HIF (Hypergraph Interchange Format) is a JSON format for representing hypergraphs. Hypabase supports full round-trip import and export.
+
+## Export
+
+### Python API
+
+```
+hb = Hypabase("myproject.db")
+hif_data = hb.to_hif()
+
+# Write to file
+import json
+with open("export.json", "w") as f:
+    json.dump(hif_data, f, indent=2)
+```
+
+### CLI
+
+```
+hypabase export-hif export.json
+```
+
+## Import
+
+### Python API
+
+```
+import json
+
+with open("export.json") as f:
+    hif_data = json.load(f)
+
+hb = Hypabase.from_hif(hif_data)
+
+# The imported graph is in-memory. To persist:
+# Option 1: Work with it in-memory
+edges = hb.edges()
+
+# Option 2: Save to a new database
+# (use the storage layer directly for this)
+```
+
+### CLI
+
+```
+hypabase --db imported.db import-hif export.json
+```
+
+## HIF format structure
+
+The HIF JSON contains nodes and edges with their full metadata:
+
+```
+{
+  "nodes": [
+    {
+      "id": "dr_smith",
+      "type": "doctor",
+      "properties": {"specialty": "neurology"}
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_uuid",
+      "type": "treatment",
+      "incidences": [
+        {"node_id": "dr_smith", "direction": null},
+        {"node_id": "patient_123", "direction": null}
+      ],
+      "source": "clinical_records",
+      "confidence": 0.95,
+      "properties": {}
+    }
+  ]
+}
+```
+
+## Use cases
+
+- **Backup and restore** — export a database, archive it, import it later
+- **Migration** — move data between Hypabase instances
+- **Sharing** — exchange hypergraph datasets with collaborators
+- **Testing** — create fixtures from HIF files
+- **Interop** — bridge to other tools that support HIF
+
+# MCP Server
+
+Hypabase ships an [MCP](https://modelcontextprotocol.io/) server that exposes the full hypergraph API as tools for AI agents. Any MCP-compatible client — Claude Code, Claude Desktop, Cursor, Windsurf, or custom agents — can create nodes, build hyperedges, query the graph, and traverse paths.
+
+## Installation
+
+Install Hypabase with the `mcp` extra:
+
+```
+uv add "hypabase[mcp]"
+```
+
+## Starting the server
+
+The MCP server runs over stdio (JSON-RPC):
+
+```
+hypabase-mcp
+```
+
+By default it opens `hypabase.db` in the current directory. Set `HYPABASE_DB_PATH` to use a different file:
+
+```
+HYPABASE_DB_PATH=/path/to/knowledge.db hypabase-mcp
+```
+
+## Client configuration
+
+### Claude Desktop
+
+Add to your `claude_desktop_config.json`:
+
+```
+{
+  "mcpServers": {
+    "hypabase": {
+      "command": "hypabase-mcp",
+      "env": {
+        "HYPABASE_DB_PATH": "/path/to/knowledge.db"
+      }
+    }
+  }
+}
+```
+
+### Claude Code
+
+Add to `.mcp.json` in your project root (shared with the team):
+
+```
+{
+  "mcpServers": {
+    "hypabase": {
+      "type": "stdio",
+      "command": "hypabase-mcp",
+      "env": {
+        "HYPABASE_DB_PATH": "/path/to/knowledge.db"
+      }
+    }
+  }
+}
+```
+
+Or add via the CLI:
+
+```
+claude mcp add --transport stdio --env HYPABASE_DB_PATH=/path/to/knowledge.db hypabase -- hypabase-mcp
+```
+
+### Cursor
+
+Add to `.cursor/mcp.json` in your project root:
+
+```
+{
+  "mcpServers": {
+    "hypabase": {
+      "command": "hypabase-mcp",
+      "env": {
+        "HYPABASE_DB_PATH": "/path/to/knowledge.db"
+      }
+    }
+  }
+}
+```
+
+### Windsurf
+
+Add to your Windsurf MCP configuration:
+
+```
+{
+  "mcpServers": {
+    "hypabase": {
+      "command": "hypabase-mcp",
+      "env": {
+        "HYPABASE_DB_PATH": "/path/to/knowledge.db"
+      }
+    }
+  }
+}
+```
+
+## Tools
+
+The server exposes 14 tools across three categories.
+
+### Node tools (4)
+
+| Tool           | Description                                         |
+| -------------- | --------------------------------------------------- |
+| `create_node`  | Create or update a node in the hypergraph           |
+| `get_node`     | Get a node by its ID                                |
+| `search_nodes` | Search for nodes by type and/or property values     |
+| `delete_node`  | Delete a node and all its connected edges (cascade) |
+
+### Edge tools (7)
+
+| Tool                    | Description                                                          |
+| ----------------------- | -------------------------------------------------------------------- |
+| `create_edge`           | Create a hyperedge connecting two or more nodes                      |
+| `batch_create_edges`    | Create hyperedges in a single batch                                  |
+| `get_edge`              | Get an edge by its ID                                                |
+| `search_edges`          | Search for edges by contained nodes, type, provenance, or properties |
+| `upsert_edge`           | Create or update an edge by its exact set of nodes (idempotent)      |
+| `delete_edge`           | Delete an edge by its ID                                             |
+| `lookup_edges_by_nodes` | O(1) lookup: find edges with exactly this set of nodes               |
+
+### Traversal & analysis tools (3)
+
+| Tool            | Description                                                           |
+| --------------- | --------------------------------------------------------------------- |
+| `get_neighbors` | Find all nodes connected to a given node via shared edges             |
+| `find_paths`    | Find paths between two nodes through hyperedges (BFS)                 |
+| `get_stats`     | Get database statistics, provenance sources, and available namespaces |
+
+## Resources
+
+The server also exposes 2 MCP resources:
+
+| Resource URI        | Description                                                          |
+| ------------------- | -------------------------------------------------------------------- |
+| `hypabase://schema` | Hypabase data model reference — nodes, edges, provenance, namespaces |
+| `hypabase://stats`  | Live database statistics and namespace listing                       |
+
+## Namespace support
+
+Every tool accepts an optional `database` parameter to scope operations to a namespace. This lets an agent maintain isolated graphs (e.g., separate knowledge domains) within a single database file:
+
+```
+create_node(id="aspirin", type="drug", database="pharma")
+create_node(id="session_1", type="session", database="agent_memory")
+```
+
+## Example workflow
+
+A typical agent session:
+
+1. **Create nodes** for entities discovered during conversation
+1. **Create edges** to record relationships between entities (with provenance)
+1. **Search edges** to recall what the agent knows about a topic
+1. **Find paths** to discover indirect connections
+1. **Get stats** to understand the current state of the knowledge graph
+
+```
+# Agent discovers entities
+create_node(id="alice", type="person")
+create_node(id="project_x", type="project")
+create_node(id="rust", type="language")
+
+# Agent records a relationship
+create_edge(
+    nodes=["alice", "project_x", "rust"],
+    type="works_on",
+    source="conversation_2024_01_15",
+    confidence=0.95
+)
+
+# Later: agent recalls what it knows about Alice
+search_edges(containing=["alice"])
+
+# Agent explores connections
+get_neighbors(node_id="project_x")
+find_paths(start="alice", end="rust")
+```
+# Examples
+
+# Medical Knowledge Graph
+
+Build a clinical knowledge graph where treatment events are single edges.
+
+A treatment event connects a doctor, patient, medication, condition, and location. This example builds a graph of such events and shows query patterns.
+
+## Setup
+
+```
+from hypabase import Hypabase
+
+hb = Hypabase("clinical.db")
+```
+
+## Build the graph
+
+```
+# Create typed nodes
+hb.node("dr_smith", type="doctor")
+hb.node("dr_jones", type="doctor")
+hb.node("patient_a", type="patient")
+hb.node("patient_b", type="patient")
+hb.node("aspirin", type="medication")
+hb.node("ibuprofen", type="medication")
+hb.node("headache", type="condition")
+hb.node("fever", type="condition")
+hb.node("mercy_hospital", type="hospital")
+
+# Record treatments with provenance
+with hb.context(source="clinical_records", confidence=0.95):
+    hb.edge(
+        ["dr_smith", "patient_a", "aspirin", "headache", "mercy_hospital"],
+        type="treatment",
+    )
+    hb.edge(
+        ["dr_jones", "patient_b", "ibuprofen", "fever"],
+        type="treatment",
+    )
+
+# Record diagnosis from a different source
+with hb.context(source="lab_results", confidence=0.88):
+    hb.edge(
+        ["dr_smith", "patient_a", "headache"],
+        type="diagnosis",
+    )
+```
+
+## Query patterns
+
+### Patient lookup
+
+Find all edges involving a patient:
+
+```
+edges = hb.edges(containing=["patient_a"])
+# Returns: treatment edge + diagnosis edge
+```
+
+### Provenance filtering
+
+Retrieve only high-confidence relationships:
+
+```
+high_conf = hb.edges(min_confidence=0.9)
+# Returns: both treatment edges (0.95), excludes diagnosis (0.88)
+```
+
+### Path finding
+
+Discover how entities connect:
+
+```
+paths = hb.paths("dr_smith", "mercy_hospital")
+# [["dr_smith", "patient_a", "mercy_hospital"], ...]
+```
+
+### N-ary preservation check
+
+Verify that a single edge stores the 5-entity treatment:
+
+```
+treatments = hb.edges(type="treatment")
+five_node = [e for e in treatments if len(e.node_ids) == 5]
+assert len(five_node) == 1
+assert set(five_node[0].node_ids) == {
+    "dr_smith", "patient_a", "aspirin", "headache", "mercy_hospital"
+}
+```
+
+### Source overview
+
+Audit which sources contributed what:
+
+```
+sources = hb.sources()
+# [
+#     {"source": "clinical_records", "edge_count": 2, "avg_confidence": 0.95},
+#     {"source": "lab_results", "edge_count": 1, "avg_confidence": 0.88},
+# ]
+```
+
+# RAG Extraction Pipeline
+
+Build a knowledge graph from document extractions, storing entities and relationships with per-source confidence scores.
+
+## Setup
+
+```
+from hypabase import Hypabase
+
+hb = Hypabase("knowledge.db")
+```
+
+## Extract and store
+
+Simulate extracting facts from three documents with different confidence levels:
+
+```
+# High-quality academic paper
+with hb.context(source="doc_arxiv_2401", confidence=0.92):
+    hb.edge(["transformer", "attention", "nlp"], type="concept_link")
+    hb.edge(["bert", "transformer", "pretraining"], type="builds_on")
+
+# Blog post — lower confidence
+with hb.context(source="doc_blog_post", confidence=0.75):
+    hb.edge(["transformer", "gpu", "training"], type="requires")
+    hb.edge(["attention", "memory", "scaling"], type="tradeoff")
+
+# Textbook with moderate confidence
+with hb.context(source="doc_textbook_ch5", confidence=0.5):
+    hb.edge(["rnn", "lstm", "attention"], type="evolution")
+```
+
+Each extraction batch gets its own source and confidence. The provenance context manager handles this cleanly.
+
+## Query patterns
+
+### Entity retrieval
+
+Find all relationships involving a concept:
+
+```
+edges = hb.edges(containing=["transformer"])
+# Returns 3 edges: concept_link, builds_on, requires
+```
+
+### Source filtering
+
+Retrieve facts from a specific document:
+
+```
+edges = hb.edges(source="doc_arxiv_2401")
+# Returns 2 edges from the arxiv paper
+```
+
+### Confidence-based retrieval
+
+Only include high-quality extractions in your RAG context:
+
+```
+high_quality = hb.edges(min_confidence=0.8)
+# Returns 2 edges (arxiv paper), excludes blog post and textbook
+```
+
+### Multi-hop discovery
+
+Find paths between concepts across documents:
+
+```
+paths = hb.paths("bert", "nlp")
+# bert → transformer → nlp (across two extraction sources)
+```
+
+### N-ary fact preservation
+
+A single edge stores the 3-way concept link:
+
+```
+concept_links = hb.edges(type="concept_link")
+assert len(concept_links[0].node_ids) == 3
+# ["transformer", "attention", "nlp"] — not three separate pairs
+```
+
+## Integration with LLM extraction
+
+A typical pipeline:
+
+```
+import json
+
+def extract_and_store(document_id, text, hb):
+    """Extract facts from text using an LLM and store in Hypabase."""
+    # Your LLM extraction logic here
+    # Returns: [{"entities": [...], "type": "...", "confidence": ...}, ...]
+    extractions = llm_extract(text)
+
+    with hb.context(source=document_id, confidence=0.85):
+        with hb.batch():  # Single save for all extractions
+            for fact in extractions:
+                hb.edge(
+                    fact["entities"],
+                    type=fact["type"],
+                    confidence=fact.get("confidence"),  # Override if LLM provides per-fact score
+                )
+```
+
+## RAG retrieval function
+
+```
+def retrieve_context(query_entities, hb, min_confidence=0.7):
+    """Retrieve structured relationships for RAG context."""
+    edges = hb.edges(
+        containing=query_entities,
+        min_confidence=min_confidence,
+    )
+    # Format for LLM context
+    facts = []
+    for e in edges:
+        facts.append(
+            f"{e.type}: {' + '.join(e.node_ids)} "
+            f"(source={e.source}, confidence={e.confidence})"
+        )
+    return "\n".join(facts)
+```
+
+This gives your LLM structured, provenance-tracked relationships as context.
+
+# Agent Memory
+
+Use Hypabase as persistent, structured memory for AI agents across sessions, with session-tagged provenance.
+
+## Multi-session persistence
+
+Hypabase persists to SQLite. An agent can write memory in one session and read it in the next:
+
+```
+from hypabase import Hypabase
+
+# --- Session 1: Agent records task context ---
+with Hypabase("agent_memory.db") as hb:
+    with hb.context(source="session_1", confidence=0.9):
+        hb.node("user_alice", type="user")
+        hb.node("task_write_report", type="task")
+        hb.node("doc_quarterly", type="document")
+        hb.edge(
+            ["user_alice", "task_write_report", "doc_quarterly"],
+            type="assigned",
+        )
+```
+
+```
+# --- Session 2: Agent reopens, queries, adds new context ---
+with Hypabase("agent_memory.db") as hb:
+    # Session 1 data is still there
+    alice_edges = hb.edges(containing=["user_alice"])
+    # Returns the "assigned" edge from session 1
+
+    with hb.context(source="session_2", confidence=0.85):
+        hb.node("tool_spreadsheet", type="tool")
+        hb.edge(
+            ["user_alice", "task_write_report", "tool_spreadsheet"],
+            type="uses_tool",
+        )
+```
+
+```
+# --- Session 3: Agent queries across all sessions ---
+with Hypabase("agent_memory.db") as hb:
+    # All data from all sessions
+    assert len(hb.nodes()) == 4
+    assert len(hb.edges()) == 2
+
+    # Cross-session path discovery
+    paths = hb.paths("doc_quarterly", "tool_spreadsheet")
+    # doc_quarterly → user_alice → tool_spreadsheet (across sessions)
+
+    # Track which session contributed what
+    sources = hb.sources()
+    # [
+    #     {"source": "session_1", "edge_count": 1, "avg_confidence": 0.9},
+    #     {"source": "session_2", "edge_count": 1, "avg_confidence": 0.85},
+    # ]
+```
+
+## Key patterns
+
+### Session tracking via provenance
+
+Use `source` to track which session or agent interaction created each memory:
+
+```
+with hb.context(source=f"session_{session_id}", confidence=0.9):
+    # All memories in this block are tagged with the session
+    hb.edge([user, task, resource], type="context")
+```
+
+### Confidence decay
+
+Lower confidence for older or uncertain memories:
+
+```
+# Fresh interaction — high confidence
+with hb.context(source="session_current", confidence=0.95):
+    hb.edge(["user", "preference_dark_mode"], type="prefers")
+
+# Inferred from past behavior — lower confidence
+with hb.context(source="inference_engine", confidence=0.6):
+    hb.edge(["user", "preference_vim"], type="likely_prefers")
+```
+
+### Context retrieval
+
+When the agent needs to recall context about an entity:
+
+```
+def get_agent_context(hb, entity_id, min_confidence=0.7):
+    """Retrieve all high-confidence memories about an entity."""
+    edges = hb.edges(
+        containing=[entity_id],
+        min_confidence=min_confidence,
+    )
+    neighbors = hb.neighbors(entity_id)
+    return {
+        "relationships": edges,
+        "connected_entities": neighbors,
+    }
+```
+
+### Decision traces
+
+Record why the agent made a decision:
+
+```
+with hb.context(source="planning_step_3", confidence=0.88):
+    hb.edge(
+        ["decision_use_react", "requirement_speed", "constraint_team_skill"],
+        type="decision_trace",
+        properties={"reasoning": "React chosen due to team familiarity"},
+    )
+```
+
+Later, the agent (or a human) can audit the decision:
+
+```
+decisions = hb.edges(type="decision_trace")
+for d in decisions:
+    print(f"Decision involved: {d.node_ids}")
+    print(f"Source: {d.source}, Confidence: {d.confidence}")
+    print(f"Reasoning: {d.properties.get('reasoning')}")
+```
+
+# Hybrid Vector Pattern
+
+Combine Hypabase (structured relationships) with a vector database (semantic similarity).
+
+## When to use this pattern
+
+- You need both semantic search ("find documents about GDPR") and structured queries ("which entities connect to regulation_gdpr?")
+- Your RAG pipeline needs to retrieve related entities, not only similar text chunks
+- You want provenance-tracked relationships alongside vector similarity scores
+
+## Architecture
+
+```
+Query → Vector DB (semantic retrieval) → entity IDs
+     → Hypabase (structured relationships) → connected entities
+     → Combine both → LLM context
+```
+
+The vector database finds *what's relevant*. Hypabase finds *what's connected*.
+
+## Example: Legal document analysis
+
+### Step 1: Store extractions in both systems
+
+```
+from hypabase import Hypabase
+
+hb = Hypabase("legal_kg.db")
+
+# After LLM extracts entities and relationships from documents:
+with hb.context(source="doc_gdpr_analysis", confidence=0.9):
+    hb.edge(
+        ["regulation_gdpr", "company_techcorp", "violation_data_breach"],
+        type="enforcement_action",
+    )
+    hb.edge(
+        ["regulation_gdpr", "right_to_erasure", "article_17"],
+        type="defines",
+    )
+    hb.edge(
+        ["company_techcorp", "fine_20m", "year_2024"],
+        type="penalty",
+    )
+
+# Meanwhile, store document chunks in your vector DB:
+# vector_db.upsert(chunks, embeddings)
+```
+
+### Step 2: Hybrid retrieval
+
+```
+def hybrid_retrieve(query_text, hb, vector_db, min_confidence=0.7):
+    """Combine vector search with structured graph queries."""
+
+    # 1. Vector search for semantic retrieval
+    similar_docs = vector_db.search(query_text, top_k=10)
+    doc_entity_ids = extract_entity_ids(similar_docs)
+
+    # 2. Hypabase for structured multi-entity queries
+    edges = hb.edges(
+        containing=doc_entity_ids,
+        min_confidence=min_confidence,
+    )
+
+    # 3. Expand context with graph neighbors
+    all_entities = set()
+    for e in edges:
+        all_entities.update(e.node_ids)
+
+    neighbor_edges = []
+    for entity in all_entities:
+        neighbor_edges.extend(
+            hb.edges_of_node(entity, edge_types=["defines", "enforcement_action"])
+        )
+
+    return {
+        "vector_results": similar_docs,
+        "graph_relationships": edges,
+        "expanded_context": neighbor_edges,
+    }
+```
+
+### Step 3: Build LLM context
+
+```
+def build_context(retrieval_results):
+    """Format hybrid results for LLM consumption."""
+    parts = []
+
+    # Structured relationships
+    parts.append("Known relationships:")
+    for e in retrieval_results["graph_relationships"]:
+        parts.append(
+            f"  {e.type}: {' + '.join(e.node_ids)} "
+            f"(confidence={e.confidence})"
+        )
+
+    # Relevant text passages
+    parts.append("\nRelevant passages:")
+    for doc in retrieval_results["vector_results"]:
+        parts.append(f"  {doc['text'][:200]}...")
+
+    return "\n".join(parts)
+```
+
+## What each system provides
+
+**Vector database:** semantic similarity search, fuzzy natural language queries, embedding-based ranking.
+
+**Hypabase:** structured relationship queries, multi-hop traversal, provenance filtering, n-ary facts.
+
+The hybrid pattern combines both — semantic retrieval to find relevant entities, then structured queries to expand context with connected relationships and provenance.
+
+## Compatible vector databases
+
+Any vector database works with this pattern:
+
+- **ChromaDB** — local-first, Python-native (good match for Hypabase's local-first model)
+- **Qdrant** — high-performance, supports filtering
+- **Weaviate** — hybrid search built-in
+- **Pinecone** — managed cloud service
+- **pgvector** — PostgreSQL extension
+# Comparisons
+
+# Hypabase vs NetworkX
+
+## Different data models
+
+[NetworkX](https://networkx.org/) is the standard Python library for graph analysis. It supports undirected graphs, directed graphs, and multigraphs — but all edges are binary (connecting exactly two nodes).
+
+Hypabase is a hypergraph library where a single edge connects any number of nodes.
+
+If your relationships are all pairwise, NetworkX is the established choice. If your relationships involve 3+ entities and you need them to stay atomic, that's what Hypabase is for.
+
+## The n-ary problem in NetworkX
+
+Consider: "Alice, Bob, and Carol co-authored a paper."
+
+### NetworkX
+
+NetworkX has no native way to represent a 3-way relationship. Common workarounds:
+
+**Clique expansion** — create pairwise edges between all participants:
+
+```
+import networkx as nx
+
+G = nx.Graph()
+G.add_edge("alice", "bob", type="coauthor")
+G.add_edge("alice", "carol", type="coauthor")
+G.add_edge("bob", "carol", type="coauthor")
+```
+
+The grouping — the fact that all three were part of *one* collaboration — becomes implicit. You can't distinguish "all three worked together" from "three separate pairs happened to collaborate."
+
+**Bipartite/intermediate node** — add a node to represent the relationship:
+
+```
+G.add_edge("alice", "paper_1")
+G.add_edge("bob", "paper_1")
+G.add_edge("carol", "paper_1")
+```
+
+This preserves the grouping but mixes entities and relationships into the same node space.
+
+### Hypabase
+
+```
+hb.edge(
+    ["alice", "bob", "carol"],
+    type="coauthor",
+    source="publication_db",
+    confidence=1.0,
+)
+```
+
+One edge, three nodes, with provenance.
+
+## Comparison
+
+|                         | NetworkX                                                         | Hypabase                                   |
+| ----------------------- | ---------------------------------------------------------------- | ------------------------------------------ |
+| **Edge model**          | Binary                                                           | N-ary (2+ nodes)                           |
+| **N-ary relationships** | Workarounds (cliques, bipartite)                                 | Native hyperedges                          |
+| **Algorithms**          | Extensive (centrality, community detection, flow, matching, ...) | Traversal, path finding, vertex-set lookup |
+| **Visualization**       | matplotlib, pyvis, etc.                                          | None                                       |
+| **Persistence**         | Manual serialization (GraphML, GML, pickle, ...)                 | Automatic SQLite                           |
+| **Provenance**          | None                                                             | Built-in `source` and `confidence`         |
+| **Documentation**       | Extensive (textbooks, courses, tutorials)                        | Docs site                                  |
+| **Graph types**         | Undirected, directed, multigraph                                 | Undirected and directed hyperedges         |
+
+## When to use NetworkX
+
+- Your relationships are all pairwise
+- You need graph algorithms (centrality, community detection, shortest paths, flow, matching)
+- You need visualization
+- You're following tutorials or academic papers that use NetworkX
+
+## When to use Hypabase
+
+- Your relationships involve 3+ entities and you want the grouping stored in the edge itself
+- You need provenance tracking on relationships
+- You want automatic persistence without managing serialization
+- You need isolated namespaces for different domains or data sources
+
+# Hypabase vs HyperNetX
+
+## Both are Python hypergraph libraries
+
+[HyperNetX](https://github.com/pnnl/HyperNetX) (HNX) is a Python library from Pacific Northwest National Laboratory for analyzing and visualizing hypergraphs. Hypabase is a Python hypergraph library focused on storage, querying, and provenance tracking. They solve different problems within the same domain.
+
+## Different focus
+
+HyperNetX is built for **analysis and visualization**. It provides hypergraph metrics, set operations (union, intersection, difference), and visualization tools. It's designed for researchers who want to study hypergraph structure.
+
+Hypabase is built for **storage and querying with provenance**. It provides CRUD operations, SQLite persistence, provenance tracking, and an MCP server. It's designed for applications that need to build, persist, and query hypergraphs.
+
+## Comparison
+
+|                         | HyperNetX                                                           | Hypabase                                   |
+| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------ |
+| **Focus**               | Analysis and visualization                                          | Storage, querying, and provenance          |
+| **Persistence**         | None (in-memory only)                                               | SQLite (automatic)                         |
+| **Provenance**          | None                                                                | Built-in `source` and `confidence`         |
+| **Visualization**       | Built-in                                                            | None                                       |
+| **Algorithms**          | Metrics, set operations, analysis                                   | Traversal, path finding, vertex-set lookup |
+| **Namespace isolation** | None                                                                | `.database("name")` scoping                |
+| **Data backend**        | Pandas DataFrames                                                   | Python dicts + SQLite                      |
+| **MCP server**          | None                                                                | 14 tools + 2 resources                     |
+| **HIF support**         | [Core contributor](https://github.com/pnnl/HyperNetX) to the format | Import/export supported                    |
+| **API style**           | Analysis-oriented                                                   | CRUD-oriented                              |
+
+## When to use HyperNetX
+
+- You need to visualize hypergraphs
+- You need hypergraph analysis algorithms (metrics, set operations, arithmetic)
+- You're doing academic research on hypergraph structure
+- You need to compute hypergraph properties like s-connectedness or centrality measures
+
+## When to use Hypabase
+
+- You need to persist hypergraphs to disk and query them later
+- You need provenance tracking on every edge
+- You're building an application that creates and queries hypergraphs over time
+- You need isolated namespaces for different domains or data sources
+- You're integrating with AI agents via MCP
+
+## Using them together
+
+HyperNetX and Hypabase can complement each other. Use Hypabase as the persistent storage and query layer, and export to HyperNetX (via HIF) when you need analysis or visualization.
+
+```
+from hypabase import Hypabase
+import hypernetx as hnx
+import json
+
+hb = Hypabase("my.db")
+
+# Build your hypergraph with Hypabase
+hb.edge(["a", "b", "c"], type="collaboration", source="hr_system", confidence=0.9)
+hb.edge(["b", "c", "d"], type="collaboration", source="hr_system", confidence=0.85)
+
+# Export to HIF and load in HyperNetX
+hif_data = hb.to_hif()
+with open("graph.hif.json", "w") as f:
+    json.dump(hif_data, f)
+
+H = hnx.from_hif("graph.hif.json")  # ready for analysis and visualization
+```
+
+# Hypabase vs Neo4j
+
+## The core difference
+
+Neo4j is a property graph database. Every edge connects exactly two nodes. When your data has relationships between 3+ entities, Neo4j requires you to decompose them using intermediate nodes (the reification pattern).
+
+Hypabase is a hypergraph library. A single edge connects any number of nodes directly.
+
+## Modeling n-ary relationships
+
+**The fact**: "Dr. Smith treated Patient 123 with Aspirin for Headache at Mercy Hospital"
+
+### Neo4j
+
+Neo4j edges connect exactly two nodes. To model a 5-entity relationship, you create an intermediate node:
+
+```
+CREATE (t:Treatment)
+CREATE (dr_smith)-[:TREATS]->(t)
+CREATE (t)-[:PATIENT]->(patient_123)
+CREATE (t)-[:MEDICATION]->(aspirin)
+CREATE (t)-[:CONDITION]->(headache)
+CREATE (t)-[:LOCATION]->(mercy_hospital)
+```
+
+### Hypabase
+
+```
+hb.edge(
+    ["dr_smith", "patient_123", "aspirin", "headache", "mercy_hospital"],
+    type="treatment",
+    source="clinical_records",
+    confidence=0.95,
+)
+```
+
+## Comparison
+
+|                         | Neo4j                           | Hypabase                           |
+| ----------------------- | ------------------------------- | ---------------------------------- |
+| **Edge model**          | Binary (2 nodes per edge)       | N-ary (2+ nodes per edge)          |
+| **N-ary relationships** | Reification pattern             | Native hyperedges                  |
+| **Query language**      | Cypher                          | Python SDK                         |
+| **Provenance**          | Custom properties               | Built-in `source` and `confidence` |
+| **Setup**               | Server process or cloud         | `uv add hypabase`                  |
+| **Storage**             | Custom binary format            | SQLite                             |
+| **Visualization**       | Neo4j Browser, Bloom            | None                               |
+| **Drivers**             | Python, Java, JS, .NET, Go      | Python only                        |
+| **Data size**           | Disk-backed, scales to billions | In-memory, limited by RAM          |
+| **Concurrency**         | Multi-user, ACID transactions   | Single-process                     |
+
+## When to use Neo4j
+
+- You have pairwise relationships and Cypher's pattern matching fits your queries
+- You need a declarative query language — Cypher is genuinely powerful for complex graph patterns
+- You need concurrent multi-user access with ACID transactions
+- Your data exceeds available memory
+- You need built-in visualization
+- You want managed cloud deployment (Neo4j Aura)
+- You need non-Python drivers (Java, JS, .NET, Go)
+
+## When to use Hypabase
+
+- Your relationships connect 3+ entities and you want them to stay atomic
+- You need provenance tracking as part of the data model, not an afterthought
+- You want zero-config embedded storage with no server to manage
+- Your data fits in memory and you want fast in-process access
+- You're integrating with AI agents via MCP
+
+## Code comparison: patient lookup
+
+### Neo4j
+
+```
+MATCH (p:Patient {id: 'patient_123'})-[:PATIENT]-(t:Treatment)
+MATCH (t)-[:TREATS]-(d:Doctor)
+MATCH (t)-[:MEDICATION]-(m:Medication)
+MATCH (t)-[:CONDITION]-(c:Condition)
+RETURN d, m, c
+```
+
+### Hypabase
+
+```
+edges = hb.edges(containing=["patient_123"], type="treatment")
+# Each edge contains all connected entities directly
+```
+# API Reference
+
+# Client API
+
+## hypabase.client.Hypabase
+
+Hypergraph client.
+
+The primary interface for creating, querying, and traversing hypergraphs. Supports in-memory and local SQLite backends.
+
+Constructor patterns
+
+- `Hypabase()` — in-memory, ephemeral (SQLite `:memory:`)
+- `Hypabase("file.db")` — local persistent SQLite file
+- `Hypabase("https://...")` — cloud backend (Phase 3, raises NotImplementedError)
+
+Example
+
+```
+hb = Hypabase()                          # in-memory
+hb = Hypabase("myproject.db")             # local SQLite file
+
+# Namespace isolation
+drugs = hb.database("drugs")
+sessions = hb.database("sessions")
+```
+
+### current_database
+
+```
+current_database: str
+```
+
+Current namespace name.
+
+### close
+
+```
+close() -> None
+```
+
+Close the database connection.
+
+Saves pending changes and releases the SQLite connection. No-op for in-memory instances.
+
+### save
+
+```
+save() -> None
+```
+
+Persist current state to SQLite.
+
+No-op for in-memory instances. Normally called automatically after each mutation; use this for explicit manual saves.
+
+### database
+
+```
+database(name: str) -> Hypabase
+```
+
+Return a scoped view into a named namespace.
+
+The returned instance shares the same SQLite connection and stores dict, but reads/writes only the given namespace's data.
+
+Parameters:
+
+| Name   | Type  | Description     | Default    |
+| ------ | ----- | --------------- | ---------- |
+| `name` | `str` | Namespace name. | *required* |
+
+Returns:
+
+| Type       | Description                                      |
+| ---------- | ------------------------------------------------ |
+| `Hypabase` | A new Hypabase instance scoped to the namespace. |
+
+### databases
+
+```
+databases() -> list[str]
+```
+
+List all namespaces.
+
+Returns:
+
+| Type        | Description                     |
+| ----------- | ------------------------------- |
+| `list[str]` | Sorted list of namespace names. |
+
+### delete_database
+
+```
+delete_database(name: str) -> bool
+```
+
+Delete a namespace and all its data.
+
+Parameters:
+
+| Name   | Type  | Description          | Default    |
+| ------ | ----- | -------------------- | ---------- |
+| `name` | `str` | Namespace to delete. | *required* |
+
+Returns:
+
+| Type   | Description                                     |
+| ------ | ----------------------------------------------- |
+| `bool` | True if the namespace existed, False otherwise. |
+
+### context
+
+```
+context(*, source: str, confidence: float = 1.0) -> Generator[None, None, None]
+```
+
+Set default provenance for all edges created within the block.
+
+Edges created inside the context inherit `source` and `confidence` unless overridden per-edge. Contexts can be nested; the innermost wins.
+
+Parameters:
+
+| Name         | Type    | Description                                           | Default    |
+| ------------ | ------- | ----------------------------------------------------- | ---------- |
+| `source`     | `str`   | Provenance source string (e.g., "gpt-4o_extraction"). | *required* |
+| `confidence` | `float` | Default confidence score, 0.0-1.0.                    | `1.0`      |
+
+Example
+
+```
+with hb.context(source="clinical_records", confidence=0.95):
+    hb.edge(["a", "b"], type="link")  # inherits provenance
+```
+
+### node
+
+```
+node(id: str, *, type: str = 'unknown', **properties: Any) -> Node
+```
+
+Create or update a node.
+
+If a node with the given ID exists, its type and properties are updated. Otherwise a new node is created.
+
+Parameters:
+
+| Name           | Type  | Description                                      | Default     |
+| -------------- | ----- | ------------------------------------------------ | ----------- |
+| `id`           | `str` | Unique node identifier.                          | *required*  |
+| `type`         | `str` | Node classification (e.g., "doctor", "patient"). | `'unknown'` |
+| `**properties` | `Any` | Arbitrary key-value metadata stored on the node. | `{}`        |
+
+Returns:
+
+| Type   | Description                  |
+| ------ | ---------------------------- |
+| `Node` | The created or updated Node. |
+
+Raises:
+
+| Type         | Description               |
+| ------------ | ------------------------- |
+| `ValueError` | If id is an empty string. |
+
+### get_node
+
+```
+get_node(id: str) -> Node | None
+```
+
+Get a node by ID.
+
+Parameters:
+
+| Name | Type  | Description             | Default    |
+| ---- | ----- | ----------------------- | ---------- |
+| `id` | `str` | The node ID to look up. | *required* |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| \`Node | None\`      |
+
+### nodes
+
+```
+nodes(*, type: str | None = None) -> list[Node]
+```
+
+Query nodes, optionally filtered by type.
+
+Parameters:
+
+| Name   | Type  | Description | Default                                      |
+| ------ | ----- | ----------- | -------------------------------------------- |
+| `type` | \`str | None\`      | If provided, return only nodes of this type. |
+
+Returns:
+
+| Type         | Description             |
+| ------------ | ----------------------- |
+| `list[Node]` | List of matching nodes. |
+
+### find_nodes
+
+```
+find_nodes(**properties: Any) -> list[Node]
+```
+
+Find nodes matching all specified properties.
+
+Parameters:
+
+| Name           | Type  | Description                                      | Default |
+| -------------- | ----- | ------------------------------------------------ | ------- |
+| `**properties` | `Any` | Key-value pairs that must match node properties. | `{}`    |
+
+Returns:
+
+| Type         | Description             |
+| ------------ | ----------------------- |
+| `list[Node]` | List of matching nodes. |
+
+Example
+
+```
+hb.find_nodes(role="admin", active=True)
+```
+
+### has_node
+
+```
+has_node(id: str) -> bool
+```
+
+Check if a node exists.
+
+Parameters:
+
+| Name | Type  | Description           | Default    |
+| ---- | ----- | --------------------- | ---------- |
+| `id` | `str` | The node ID to check. | *required* |
+
+Returns:
+
+| Type   | Description                               |
+| ------ | ----------------------------------------- |
+| `bool` | True if the node exists, False otherwise. |
+
+### delete_node
+
+```
+delete_node(id: str, *, cascade: bool = False) -> bool
+```
+
+Delete a node by ID.
+
+Parameters:
+
+| Name      | Type   | Description                              | Default    |
+| --------- | ------ | ---------------------------------------- | ---------- |
+| `id`      | `str`  | The node ID to delete.                   | *required* |
+| `cascade` | `bool` | If True, also delete all incident edges. | `False`    |
+
+Returns:
+
+| Type   | Description                                                |
+| ------ | ---------------------------------------------------------- |
+| `bool` | True if the node existed and was deleted, False otherwise. |
+
+### delete_node_cascade
+
+```
+delete_node_cascade(node_id: str) -> tuple[bool, int]
+```
+
+Delete a node and all its incident edges.
+
+.. deprecated:: 0.2.0 Use `delete_node(id, cascade=True)` instead.
+
+Parameters:
+
+| Name      | Type  | Description            | Default    |
+| --------- | ----- | ---------------------- | ---------- |
+| `node_id` | `str` | The node ID to delete. | *required* |
+
+Returns:
+
+| Type               | Description                                           |
+| ------------------ | ----------------------------------------------------- |
+| `tuple[bool, int]` | Tuple of (node_was_deleted, number_of_edges_deleted). |
+
+### edge
+
+```
+edge(nodes: list[str], *, type: str, directed: bool = False, source: str | None = None, confidence: float | None = None, properties: dict[str, Any] | None = None, id: str | None = None) -> Edge
+```
+
+Create a hyperedge linking two or more nodes in one relationship.
+
+Nodes are auto-created if they don't exist. Provenance values fall back to the active `context()` block if not set explicitly.
+
+Parameters:
+
+| Name         | Type             | Description                                    | Default                                                 |
+| ------------ | ---------------- | ---------------------------------------------- | ------------------------------------------------------- |
+| `nodes`      | `list[str]`      | Node IDs to connect. Must contain at least 2.  | *required*                                              |
+| `type`       | `str`            | Edge type (e.g., "treatment", "concept_link"). | *required*                                              |
+| `directed`   | `bool`           | If True, first node is tail, last is head.     | `False`                                                 |
+| `source`     | \`str            | None\`                                         | Provenance source. Falls back to context or "unknown".  |
+| `confidence` | \`float          | None\`                                         | Confidence score 0.0-1.0. Falls back to context or 1.0. |
+| `properties` | \`dict[str, Any] | None\`                                         | Arbitrary key-value metadata.                           |
+| `id`         | \`str            | None\`                                         | Optional edge ID. Auto-generated UUID if omitted.       |
+
+Returns:
+
+| Type   | Description       |
+| ------ | ----------------- |
+| `Edge` | The created Edge. |
+
+Raises:
+
+| Type         | Description                                    |
+| ------------ | ---------------------------------------------- |
+| `ValueError` | If fewer than 2 nodes or any node ID is empty. |
+
+Example
+
+```
+hb.edge(
+    ["dr_smith", "patient_123", "aspirin"],
+    type="treatment",
+    source="clinical_records",
+    confidence=0.95,
+)
+```
+
+### get_edge
+
+```
+get_edge(id: str) -> Edge | None
+```
+
+Get an edge by ID.
+
+Parameters:
+
+| Name | Type  | Description             | Default    |
+| ---- | ----- | ----------------------- | ---------- |
+| `id` | `str` | The edge ID to look up. | *required* |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| \`Edge | None\`      |
+
+### edges
+
+```
+edges(*, containing: list[str] | None = None, type: str | None = None, match_all: bool = False, source: str | None = None, min_confidence: float | None = None) -> list[Edge]
+```
+
+Query edges by contained nodes, type, source, and/or confidence.
+
+All filters are combined with AND logic.
+
+Parameters:
+
+| Name             | Type        | Description                                                                                  | Default                                        |
+| ---------------- | ----------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `containing`     | \`list[str] | None\`                                                                                       | Node IDs that must appear in the edge.         |
+| `type`           | \`str       | None\`                                                                                       | Filter to edges of this type.                  |
+| `match_all`      | `bool`      | If True, edges must contain all nodes in containing. If False (default), any match suffices. | `False`                                        |
+| `source`         | \`str       | None\`                                                                                       | Filter to edges from this provenance source.   |
+| `min_confidence` | \`float     | None\`                                                                                       | Filter to edges with confidence >= this value. |
+
+Returns:
+
+| Type         | Description             |
+| ------------ | ----------------------- |
+| `list[Edge]` | List of matching edges. |
+
+Example
+
+```
+hb.edges(containing=["patient_123"], min_confidence=0.9)
+```
+
+### find_edges
+
+```
+find_edges(**properties: Any) -> list[Edge]
+```
+
+Find edges matching all specified properties.
+
+Parameters:
+
+| Name           | Type  | Description                                      | Default |
+| -------------- | ----- | ------------------------------------------------ | ------- |
+| `**properties` | `Any` | Key-value pairs that must match edge properties. | `{}`    |
+
+Returns:
+
+| Type         | Description             |
+| ------------ | ----------------------- |
+| `list[Edge]` | List of matching edges. |
+
+### has_edge_with_nodes
+
+```
+has_edge_with_nodes(node_ids: set[str], edge_type: str | None = None) -> bool
+```
+
+Check if an edge with the exact vertex set exists.
+
+Parameters:
+
+| Name        | Type       | Description            | Default                                |
+| ----------- | ---------- | ---------------------- | -------------------------------------- |
+| `node_ids`  | `set[str]` | Exact set of node IDs. | *required*                             |
+| `edge_type` | \`str      | None\`                 | If provided, also filter by edge type. |
+
+Returns:
+
+| Type   | Description                   |
+| ------ | ----------------------------- |
+| `bool` | True if matching edge exists. |
+
+### sources
+
+```
+sources() -> list[dict[str, Any]]
+```
+
+Summarize provenance sources across all edges.
+
+Returns:
+
+| Type                   | Description                                     |
+| ---------------------- | ----------------------------------------------- |
+| `list[dict[str, Any]]` | List of dicts with keys "source", "edge_count", |
+| `list[dict[str, Any]]` | and "avg_confidence" for each unique source.    |
+
+Example
+
+```
+hb.sources()
+# [{"source": "clinical_records", "edge_count": 2, "avg_confidence": 0.95}]
+```
+
+### edges_by_vertex_set
+
+```
+edges_by_vertex_set(nodes: list[str]) -> list[Edge]
+```
+
+O(1) lookup: find edges with exactly this set of nodes.
+
+Uses the SHA-256 vertex-set hash index for constant-time lookup. Order of `nodes` does not matter.
+
+Parameters:
+
+| Name    | Type        | Description                         | Default    |
+| ------- | ----------- | ----------------------------------- | ---------- |
+| `nodes` | `list[str]` | The exact set of node IDs to match. | *required* |
+
+Returns:
+
+| Type         | Description                           |
+| ------------ | ------------------------------------- |
+| `list[Edge]` | Edges whose node set matches exactly. |
+
+### delete_edge
+
+```
+delete_edge(id: str) -> bool
+```
+
+Delete an edge by ID.
+
+Parameters:
+
+| Name | Type  | Description            | Default    |
+| ---- | ----- | ---------------------- | ---------- |
+| `id` | `str` | The edge ID to delete. | *required* |
+
+Returns:
+
+| Type   | Description                                                |
+| ------ | ---------------------------------------------------------- |
+| `bool` | True if the edge existed and was deleted, False otherwise. |
+
+### neighbors
+
+```
+neighbors(node_id: str, *, edge_types: list[str] | None = None) -> list[Node]
+```
+
+Find all nodes connected to the given node via shared edges.
+
+The query node itself is excluded from the results.
+
+Parameters:
+
+| Name         | Type        | Description                    | Default                                          |
+| ------------ | ----------- | ------------------------------ | ------------------------------------------------ |
+| `node_id`    | `str`       | The node to find neighbors of. | *required*                                       |
+| `edge_types` | \`list[str] | None\`                         | If provided, only traverse edges of these types. |
+
+Returns:
+
+| Type         | Description                |
+| ------------ | -------------------------- |
+| `list[Node]` | List of neighboring nodes. |
+
+### paths
+
+```
+paths(start: str, end: str, *, max_hops: int = 5, edge_types: list[str] | None = None) -> list[list[str]]
+```
+
+Find paths between two nodes through hyperedges.
+
+Uses breadth-first search. Each path is a list of node IDs from `start` to `end`.
+
+Parameters:
+
+| Name         | Type        | Description                         | Default                                          |
+| ------------ | ----------- | ----------------------------------- | ------------------------------------------------ |
+| `start`      | `str`       | Starting node ID.                   | *required*                                       |
+| `end`        | `str`       | Target node ID.                     | *required*                                       |
+| `max_hops`   | `int`       | Maximum number of hops (default 5). | `5`                                              |
+| `edge_types` | \`list[str] | None\`                              | If provided, only traverse edges of these types. |
+
+Returns:
+
+| Type              | Description                                           |
+| ----------------- | ----------------------------------------------------- |
+| `list[list[str]]` | List of paths, where each path is a list of node IDs. |
+
+Example
+
+```
+paths = hb.paths("dr_smith", "mercy_hospital")
+# [["dr_smith", "patient_123", "mercy_hospital"]]
+```
+
+### find_paths
+
+```
+find_paths(start_nodes: set[str], end_nodes: set[str], *, max_hops: int = 3, max_paths: int = 10, min_intersection: int = 1, edge_types: list[str] | None = None, direction_mode: str = 'undirected') -> list[list[Edge]]
+```
+
+Find paths between two groups of nodes through shared edges.
+
+Returns paths as sequences of edges. Supports set-based start/end nodes and configurable overlap requirements.
+
+Parameters:
+
+| Name               | Type        | Description                                                 | Default                                          |
+| ------------------ | ----------- | ----------------------------------------------------------- | ------------------------------------------------ |
+| `start_nodes`      | `set[str]`  | Set of possible starting node IDs.                          | *required*                                       |
+| `end_nodes`        | `set[str]`  | Set of possible ending node IDs.                            | *required*                                       |
+| `max_hops`         | `int`       | Maximum path length in edges (default 3).                   | `3`                                              |
+| `max_paths`        | `int`       | Maximum number of paths to return (default 10).             | `10`                                             |
+| `min_intersection` | `int`       | Minimum node overlap between consecutive edges (default 1). | `1`                                              |
+| `edge_types`       | \`list[str] | None\`                                                      | If provided, only traverse edges of these types. |
+| `direction_mode`   | `str`       | "undirected" (default), "forward", or "backward".           | `'undirected'`                                   |
+
+Returns:
+
+| Type               | Description                                               |
+| ------------------ | --------------------------------------------------------- |
+| `list[list[Edge]]` | List of paths, where each path is a list of Edge objects. |
+
+### node_degree
+
+```
+node_degree(node_id: str, *, edge_types: list[str] | None = None) -> int
+```
+
+Count how many edges touch a node.
+
+Parameters:
+
+| Name         | Type        | Description          | Default                                       |
+| ------------ | ----------- | -------------------- | --------------------------------------------- |
+| `node_id`    | `str`       | The node to measure. | *required*                                    |
+| `edge_types` | \`list[str] | None\`               | If provided, only count edges of these types. |
+
+Returns:
+
+| Type  | Description                          |
+| ----- | ------------------------------------ |
+| `int` | The degree (edge count) of the node. |
+
+### edge_cardinality
+
+```
+edge_cardinality(edge_id: str) -> int
+```
+
+Count how many distinct nodes an edge contains.
+
+Parameters:
+
+| Name      | Type  | Description          | Default    |
+| --------- | ----- | -------------------- | ---------- |
+| `edge_id` | `str` | The edge to measure. | *required* |
+
+Returns:
+
+| Type  | Description                             |
+| ----- | --------------------------------------- |
+| `int` | Count of distinct node IDs in the edge. |
+
+### hyperedge_degree
+
+```
+hyperedge_degree(node_set: set[str], *, edge_type: str | None = None) -> int
+```
+
+Add up the edge counts of every node in a set.
+
+Parameters:
+
+| Name        | Type       | Description                   | Default                                     |
+| ----------- | ---------- | ----------------------------- | ------------------------------------------- |
+| `node_set`  | `set[str]` | Set of node IDs to aggregate. | *required*                                  |
+| `edge_type` | \`str      | None\`                        | If provided, only count edges of this type. |
+
+Returns:
+
+| Type  | Description                     |
+| ----- | ------------------------------- |
+| `int` | Sum of individual node degrees. |
+
+### validate
+
+```
+validate() -> ValidationResult
+```
+
+Check the hypergraph for internal consistency.
+
+Returns:
+
+| Type               | Description                                                 |
+| ------------------ | ----------------------------------------------------------- |
+| `ValidationResult` | A ValidationResult with valid, errors, and warnings fields. |
+
+### to_hif
+
+```
+to_hif() -> dict
+```
+
+Export the graph to HIF (Hypergraph Interchange Format).
+
+Returns:
+
+| Type   | Description                                               |
+| ------ | --------------------------------------------------------- |
+| `dict` | A dict representing the hypergraph in HIF JSON structure. |
+
+### from_hif
+
+```
+from_hif(hif_data: dict) -> Hypabase
+```
+
+Build a new Hypabase instance from HIF (Hypergraph Interchange Format) data.
+
+Creates an in-memory instance populated from the HIF structure.
+
+Parameters:
+
+| Name       | Type   | Description                | Default    |
+| ---------- | ------ | -------------------------- | ---------- |
+| `hif_data` | `dict` | A dict in HIF JSON format. | *required* |
+
+Returns:
+
+| Type       | Description                                           |
+| ---------- | ----------------------------------------------------- |
+| `Hypabase` | A new Hypabase instance containing the imported data. |
+
+### upsert_edge_by_vertex_set
+
+```
+upsert_edge_by_vertex_set(node_ids: set[str], edge_type: str, properties: dict[str, Any] | None = None, *, source: str | None = None, confidence: float | None = None, merge_fn: Any = None) -> Edge
+```
+
+Create or update an edge matched by its exact set of nodes.
+
+Finds an existing edge with the same nodes, or creates a new one. Useful for idempotent ingestion.
+
+Parameters:
+
+| Name         | Type             | Description                                                                                          | Default                                                 |
+| ------------ | ---------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `node_ids`   | `set[str]`       | Set of node IDs for the edge.                                                                        | *required*                                              |
+| `edge_type`  | `str`            | Edge type string.                                                                                    | *required*                                              |
+| `properties` | \`dict[str, Any] | None\`                                                                                               | Key-value metadata. Merged on update.                   |
+| `source`     | \`str            | None\`                                                                                               | Provenance source. Falls back to context or "unknown".  |
+| `confidence` | \`float          | None\`                                                                                               | Confidence score 0.0-1.0. Falls back to context or 1.0. |
+| `merge_fn`   | `Any`            | Optional callable (existing_props, new_props) -> merged_props for custom property merging on update. | `None`                                                  |
+
+Returns:
+
+| Type   | Description                  |
+| ------ | ---------------------------- |
+| `Edge` | The created or updated Edge. |
+
+### edges_of_node
+
+```
+edges_of_node(node_id: str, *, edge_types: list[str] | None = None) -> list[Edge]
+```
+
+Get all edges incident to a node.
+
+Parameters:
+
+| Name         | Type        | Description        | Default                                        |
+| ------------ | ----------- | ------------------ | ---------------------------------------------- |
+| `node_id`    | `str`       | The node to query. | *required*                                     |
+| `edge_types` | \`list[str] | None\`             | If provided, only return edges of these types. |
+
+Returns:
+
+| Type         | Description                         |
+| ------------ | ----------------------------------- |
+| `list[Edge]` | List of edges containing this node. |
+
+### batch
+
+```
+batch() -> Generator[None, None, None]
+```
+
+Group write operations and save them all at once.
+
+Reduces disk I/O for bulk inserts. Batches can nest; only the outermost batch triggers a save.
+
+Note
+
+Provides batched persistence, **not** transaction rollback. If an exception occurs mid-batch, partial in-memory changes remain and are persisted when the batch exits.
+
+Example
+
+```
+with hb.batch():
+    for i in range(1000):
+        hb.edge([f"entity_{i}", "catalog"], type="belongs_to")
+# Single save at the end
+```
+
+### stats
+
+```
+stats() -> HypergraphStats
+```
+
+Get node and edge counts by type.
+
+Returns:
+
+| Type              | Description                                    |
+| ----------------- | ---------------------------------------------- |
+| `HypergraphStats` | A HypergraphStats with node_count, edge_count, |
+| `HypergraphStats` | nodes_by_type, and edges_by_type fields.       |
+
+# Models
+
+## hypabase.models.Node
+
+Bases: `BaseModel`
+
+An entity in the hypergraph.
+
+Each node has an ID, a type for classification, and optional key-value properties. Nodes are auto-created when referenced in an edge.
+
+## hypabase.models.Edge
+
+Bases: `BaseModel`
+
+A hyperedge: one relationship linking two or more nodes.
+
+Each edge has a type, provenance (source and confidence), and can carry arbitrary properties. Node order within the edge is preserved.
+
+### node_ids
+
+```
+node_ids: list[str]
+```
+
+Ordered list of node IDs (backward compat).
+
+### node_set
+
+```
+node_set: set[str]
+```
+
+Deduplicated set of node IDs.
+
+## hypabase.models.Incidence
+
+Bases: `BaseModel`
+
+How a node or edge participates in a hyperedge.
+
+Each incidence links one node (or one edge reference) to an edge, with an optional direction. Exactly one of node_id or edge_ref_id must be set.
+
+## hypabase.models.HypergraphStats
+
+Bases: `BaseModel`
+
+Summary counts for a hypergraph.
+
+Reports total node and edge counts, broken down by type.
+
+## hypabase.models.ValidationResult
+
+Bases: `BaseModel`
+
+Result of a hypergraph consistency check.
+
+Contains a pass/fail flag, a list of errors, and a list of warnings found during validation.
+
+# CLI Reference
+
+## Installation
+
+```
+uv add "hypabase[cli]"
+```
+
+## Global options
+
+| Option      | Default       | Description                      |
+| ----------- | ------------- | -------------------------------- |
+| `--db PATH` | `hypabase.db` | Path to the SQLite database file |
+
+## Commands
+
+### `init`
+
+Initialize a new Hypabase database.
+
+```
+hypabase init
+hypabase --db custom.db init
+```
+
+Creates the database file with the Hypabase schema. No-op if the file already exists.
+
+### `node`
+
+Create or update a node.
+
+```
+hypabase node ID [OPTIONS]
+```
+
+| Option         | Default   | Description               |
+| -------------- | --------- | ------------------------- |
+| `--type TEXT`  | `unknown` | Node type                 |
+| `--props TEXT` | `None`    | JSON string of properties |
+
+**Examples:**
+
+```
+hypabase node dr_smith --type doctor
+hypabase node dr_smith --type doctor --props '{"specialty": "neurology"}'
+```
+
+### `edge`
+
+Create a hyperedge connecting two or more nodes.
+
+```
+hypabase edge NODE1 NODE2 [NODE3 ...] [OPTIONS]
+```
+
+| Option               | Default      | Description                |
+| -------------------- | ------------ | -------------------------- |
+| `--type TEXT`        | *(required)* | Edge type                  |
+| `--source TEXT`      | `None`       | Provenance source          |
+| `--confidence FLOAT` | `None`       | Confidence score (0.0-1.0) |
+| `--props TEXT`       | `None`       | JSON string of properties  |
+
+**Examples:**
+
+```
+hypabase edge dr_smith patient_123 aspirin --type treatment
+hypabase edge a b c --type link --source extraction --confidence 0.9
+hypabase edge a b --type rel --props '{"weight": 0.5}'
+```
+
+### `query`
+
+Query edges in the hypergraph.
+
+```
+hypabase query [OPTIONS]
+```
+
+| Option              | Default        | Description                                    |
+| ------------------- | -------------- | ---------------------------------------------- |
+| `--containing TEXT` | *(repeatable)* | Filter by node ID                              |
+| `--type TEXT`       | `None`         | Filter by edge type                            |
+| `--match-all`       | `False`        | Require all `--containing` nodes to be present |
+
+**Examples:**
+
+```
+hypabase query --containing patient_123
+hypabase query --containing patient_123 --containing aspirin --match-all
+hypabase query --type treatment
+```
+
+### `stats`
+
+Show database statistics: node and edge counts by type.
+
+```
+hypabase stats
+```
+
+### `validate`
+
+Check internal consistency of the hypergraph.
+
+```
+hypabase validate
+```
+
+### `export-hif`
+
+Export the hypergraph to HIF (Hypergraph Interchange Format) JSON.
+
+```
+hypabase export-hif OUTPUT_PATH
+```
+
+### `import-hif`
+
+Import a hypergraph from HIF JSON.
+
+```
+hypabase import-hif INPUT_PATH
+hypabase --db target.db import-hif INPUT_PATH
+```
