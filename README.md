@@ -6,13 +6,7 @@
 [![License](https://img.shields.io/github/license/hypabase/hypabase)](LICENSE)
 [![Downloads](https://img.shields.io/pypi/dm/hypabase)](https://pypi.org/project/hypabase/)
 
-Hypabase is a Python library for storing and querying relationships between entities. A single edge connects two or more nodes, every edge tracks where it came from (`source` and `confidence`), and the whole graph lives in a local SQLite file with no server or configuration.
-
-Use it to build knowledge graphs, retrieval-augmented generation pipelines, and structured agent memory. Recent research explores hypergraph representations for these tasks:
-
-- [HyperGraphRAG](https://arxiv.org/abs/2503.21322) — n-ary knowledge retrieval across medicine, agriculture, CS, and law
-- [Cog-RAG](https://arxiv.org/abs/2511.13201) — dual-hypergraph retrieval with theme-level and entity-level recall
-- [Hypergraph Memory for Multi-step RAG](https://arxiv.org/abs/2512.23959) — hypergraph-based memory for long-context relational modeling
+A Python hypergraph library with provenance and SQLite persistence.
 
 ## Install
 
@@ -25,7 +19,7 @@ uv add hypabase
 ```python
 from hypabase import Hypabase
 
-hb = Hypabase("my.db")  # local SQLite, zero config
+hb = Hypabase("my.db")
 
 # One edge connecting five entities
 hb.edge(
@@ -42,6 +36,17 @@ hb.edges(containing=["patient_123"])
 hb.paths("dr_smith", "mercy_hospital")
 ```
 
+## Features
+
+- **Hyperedges** — an edge connects 2+ nodes in a single relationship
+- **Provenance** — every edge carries `source` and `confidence`
+- **SQLite persistence** — data persists to a local file automatically
+- **O(1) vertex-set lookup** — find edges by their exact node set
+- **Namespace isolation** — `.database("name")` for scoped views in a single file
+- **Provenance queries** — filter by `source` and `min_confidence`, summarize with `sources()`
+- **MCP server** — tools for AI agent integration
+- **CLI** — `hypabase init`, `hypabase node`, `hypabase edge`, `hypabase query`
+
 ## Provenance
 
 Every edge carries `source` and `confidence`:
@@ -54,7 +59,7 @@ hb.edge(
     confidence=0.92,
 )
 
-# Bulk provenance
+# Bulk provenance via context manager
 with hb.context(source="schema_analysis", confidence=0.9):
     hb.edge(["a", "b"], type="fk")
     hb.edge(["b", "c"], type="fk")
@@ -69,7 +74,7 @@ hb.sources()
 
 ## Namespace isolation
 
-Isolate data into separate namespaces within a single database file:
+Isolate data into separate namespaces within a single file:
 
 ```python
 hb = Hypabase("knowledge.db")
@@ -80,20 +85,55 @@ sessions = hb.database("sessions")
 drugs.node("aspirin", type="drug")
 sessions.node("s1", type="session")
 
-drugs.nodes()     # → [aspirin]
-sessions.nodes()  # → [s1]
+drugs.nodes()     # -> [aspirin]
+sessions.nodes()  # -> [s1]
 ```
 
-## Features
+## What is a hypergraph?
 
-- **N-ary hyperedges** — an edge connects 2+ nodes in a single relationship
-- **O(1) vertex-set lookup** — find edges by their exact node set
-- **Provenance** — every edge carries `source` and `confidence`
-- **Provenance queries** — filter by `source` and `min_confidence`, summarize with `sources()`
-- **SQLite persistence** — local-first, zero-config
-- **Namespace isolation** — `.database("name")` for scoped views in a single file
-- **MCP server** — 14 tools + 2 resources for AI agent integration
-- **CLI** — `hypabase init`, `hypabase node`, `hypabase edge`, `hypabase query`
+In a regular graph, an edge connects exactly two nodes. In a hypergraph, a single edge — called a **hyperedge** — can connect any number of nodes at once.
+
+Consider a medical event: *Dr. Smith prescribes aspirin to Patient 123 for a headache at Mercy Hospital.* In a traditional graph, you'd decompose this into multiple binary edges (doctor-patient, doctor-drug, patient-hospital, ...) and lose the fact that these all belong to one event. In a hypergraph, it's one edge connecting all five entities. The relationship stays atomic.
+
+This matters because many real-world relationships are naturally n-ary. A paper has multiple authors. A transaction involves a buyer, a seller, a product, and a payment method. A chemical reaction involves multiple reagents and products. Forcing these into pairs loses information.
+
+### Why provenance?
+
+When relationships come from different sources — manual entry, LLM extraction, sensor data, clinical records — you need to know where each one came from and how much you trust it. Hypabase tracks this with two fields on every edge: `source` (a string identifying the origin) and `confidence` (a float from 0 to 1). You can filter queries by these fields and get a summary of all sources in your graph with `hb.sources()`.
+
+### Where hypergraphs show up
+
+- **Knowledge graphs** — representing complex real-world relationships without decomposition
+- **Agent memory** — structured, queryable memory for AI agents that persists across sessions
+- **Biomedical data** — drug interactions, clinical events, molecular pathways
+- **RAG pipelines** — storing extracted relationships for retrieval-augmented generation
+- **Supply chains, collaboration networks, and anywhere relationships involve more than two things**
+
+The broader idea has roots in AI research going back to OpenCog's [AtomSpace](https://wiki.opencog.org/w/AtomSpace), which uses hypergraph-like structures to represent knowledge for AGI. More recent work applies hypergraphs specifically to retrieval and reasoning:
+
+- [HyperGraphRAG](https://arxiv.org/abs/2503.21322) — n-ary knowledge retrieval across medicine, agriculture, CS, and law
+- [Cog-RAG](https://arxiv.org/abs/2511.13201) — dual-hypergraph retrieval with theme-level and entity-level recall
+- [Hypergraph Memory for Multi-step RAG](https://arxiv.org/abs/2512.23959) — hypergraph-based memory for long-context relational modeling
+
+## MCP server
+
+Hypabase includes an MCP server with 14 tools and 2 resources so AI agents can use it as structured memory. Works with Claude Code, Claude Desktop, Cursor, Windsurf, and any MCP-compatible client.
+
+```bash
+uv add hypabase[mcp]
+hypabase mcp
+```
+
+## CLI
+
+```bash
+uv add hypabase[cli]
+hypabase init
+hypabase node dr_smith --type doctor
+hypabase edge dr_smith patient_123 aspirin --type treatment --source clinical_records
+hypabase query --containing dr_smith
+hypabase stats
+```
 
 ## Documentation
 

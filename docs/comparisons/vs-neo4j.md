@@ -2,9 +2,9 @@
 
 ## The core difference
 
-Neo4j is a property graph database. Every edge connects exactly two nodes. When your data has relationships between 3+ entities, Neo4j forces you to decompose them.
+Neo4j is a property graph database. Every edge connects exactly two nodes. When your data has relationships between 3+ entities, Neo4j requires you to decompose them using intermediate nodes (the reification pattern).
 
-Hypabase is a hypergraph database. A single edge connects any number of nodes.
+Hypabase is a hypergraph library. A single edge connects any number of nodes directly.
 
 ## Modeling n-ary relationships
 
@@ -12,7 +12,7 @@ Hypabase is a hypergraph database. A single edge connects any number of nodes.
 
 ### Neo4j
 
-Neo4j edges connect exactly two nodes. To model a 5-entity relationship, you use an intermediate node (reification pattern):
+Neo4j edges connect exactly two nodes. To model a 5-entity relationship, you create an intermediate node:
 
 ```cypher
 CREATE (t:Treatment)
@@ -24,8 +24,6 @@ CREATE (t)-[:LOCATION]->(mercy_hospital)
 ```
 
 ### Hypabase
-
-Hypabase edges connect any number of nodes directly:
 
 ```python
 hb.edge(
@@ -41,30 +39,33 @@ hb.edge(
 | | Neo4j | Hypabase |
 |---|---|---|
 | **Edge model** | Binary (2 nodes per edge) | N-ary (2+ nodes per edge) |
-| **N-ary relationships** | Reification pattern (intermediate nodes) | Native hyperedges |
-| **Provenance** | Custom properties (no standard) | Built-in `source` and `confidence` |
-| **Query language** | Cypher | Python SDK (no query language) |
-| **Setup** | Server process, Docker, or Aura cloud | `uv add hypabase` — zero config |
-| **Storage** | Custom binary format | SQLite (local-first) |
-| **Vertex-set lookup** | Multi-hop traversal | O(1) hash index |
-| **Visualization** | Neo4j Browser, Bloom | None (library, not platform) |
-| **Community** | Large, established | New |
+| **N-ary relationships** | Reification pattern | Native hyperedges |
+| **Query language** | Cypher | Python SDK |
+| **Provenance** | Custom properties | Built-in `source` and `confidence` |
+| **Setup** | Server process or cloud | `uv add hypabase` |
+| **Storage** | Custom binary format | SQLite |
+| **Visualization** | Neo4j Browser, Bloom | None |
+| **Drivers** | Python, Java, JS, .NET, Go | Python only |
+| **Data size** | Disk-backed, scales to billions | In-memory, limited by RAM |
+| **Concurrency** | Multi-user, ACID transactions | Single-process |
 
-## When to use Neo4j instead
+## When to use Neo4j
 
-- You only have pairwise relationships
-- You need Cypher's query expressiveness for complex graph patterns
-- You need a managed cloud service (Neo4j Aura)
-- You need built-in visualization (Neo4j Browser, Bloom)
-- Your team already knows Neo4j and Cypher
+- You have pairwise relationships and Cypher's pattern matching fits your queries
+- You need a declarative query language — Cypher is genuinely powerful for complex graph patterns
+- You need concurrent multi-user access with ACID transactions
+- Your data exceeds available memory
+- You need built-in visualization
+- You want managed cloud deployment (Neo4j Aura)
+- You need drivers in multiple languages
 
-## When to use Hypabase instead
+## When to use Hypabase
 
-- Your relationships connect 3+ entities
-- You need provenance tracking (source, confidence) as part of the data model
-- You want zero-config local-first storage
-- You're building for AI agents or LLM pipelines (SDK-only API, no query language)
-- You want `uv add` and go, not a server process
+- Your relationships connect 3+ entities and you want them to stay atomic
+- You need provenance tracking as part of the data model, not an afterthought
+- You want zero-config embedded storage with no server to manage
+- Your data fits in memory and you want fast in-process access
+- You're integrating with AI agents via MCP
 
 ## Code comparison: patient lookup
 

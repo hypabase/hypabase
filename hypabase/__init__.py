@@ -1,4 +1,4 @@
-"""Hypabase — The hypergraph database for AI."""
+"""Hypabase — A Python hypergraph library with provenance and SQLite persistence."""
 
 __version__ = "0.1.0"
 

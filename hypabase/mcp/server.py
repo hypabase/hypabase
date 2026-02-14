@@ -42,10 +42,12 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[dict]:
 mcp = FastMCP(
     "Hypabase",
     instructions=(
-        "Hypabase is a hypergraph database for AI agents. "
-        "Unlike traditional graph databases, a single hyperedge can connect 2+ nodes atomically. "
-        "Every edge carries provenance metadata (source and confidence score). "
-        "Use these tools to create nodes and edges, query the graph, and traverse paths."
+        "Hypabase is a hypergraph store. "
+        "Key behaviors: Edges connect 2+ nodes. "
+        "Nodes are auto-created when referenced in an edge — you don't need to create them first. "
+        "Every edge carries a source string and a confidence score (0-1) for provenance tracking. "
+        "Use the database parameter on any tool to scope operations to a namespace. "
+        "Use upsert_edge for idempotent writes (matches by vertex set + type)."
     ),
     lifespan=app_lifespan,
 )
