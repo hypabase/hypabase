@@ -1,16 +1,10 @@
 ---
-description: "Hypabase is a Python library for storing and querying n-ary relationships with provenance tracking. SQLite-backed, zero configuration."
+description: "A Python hypergraph library with provenance and SQLite persistence."
 ---
 
 # Hypabase
 
-Hypabase is a Python library for storing and querying relationships between entities. A single edge connects two or more nodes, every edge tracks where it came from (`source` and `confidence`), and the whole graph lives in a local SQLite file with no server or configuration.
-
-Use it to build knowledge graphs, retrieval-augmented generation pipelines, and structured agent memory. Recent research explores hypergraph representations for these tasks:
-
-- [HyperGraphRAG](https://arxiv.org/abs/2503.21322) — n-ary knowledge retrieval across medicine, agriculture, CS, and law
-- [Cog-RAG](https://arxiv.org/abs/2511.13201) — dual-hypergraph retrieval with theme-level and entity-level recall
-- [Hypergraph Memory for Multi-step RAG](https://arxiv.org/abs/2512.23959) — hypergraph-based memory for long-context relational modeling
+A Python hypergraph library with provenance and SQLite persistence.
 
 ## Install
 
@@ -23,7 +17,7 @@ uv add hypabase
 ```python
 from hypabase import Hypabase
 
-hb = Hypabase("my.db")  # local SQLite, zero config
+hb = Hypabase("my.db")
 
 # One edge connecting five entities
 hb.edge(

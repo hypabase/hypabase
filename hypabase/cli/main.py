@@ -24,7 +24,7 @@ def _get_client(db: str, database: str = "default") -> Hypabase:
 @click.option("--database", default="default", help="Namespace (default: 'default').")
 @click.pass_context
 def cli(ctx: click.Context, db: str, database: str) -> None:
-    """Hypabase — The hypergraph database for AI."""
+    """Hypabase CLI — manage hypergraphs from the command line."""
     ctx.ensure_object(dict)
     ctx.obj["db"] = db
     ctx.obj["database"] = database

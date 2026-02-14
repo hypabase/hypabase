@@ -52,7 +52,7 @@ def _core_edge_to_model(ce: CoreEdge) -> Edge:
 
 
 class Hypabase:
-    """A hypergraph database client.
+    """Hypergraph client.
 
     The primary interface for creating, querying, and traversing hypergraphs.
     Supports in-memory and local SQLite backends.

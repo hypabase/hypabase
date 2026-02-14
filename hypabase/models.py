@@ -102,7 +102,7 @@ class ValidationResult(BaseModel):
 
 
 class HypergraphStats(BaseModel):
-    """Summary counts for a hypergraph database.
+    """Summary counts for a hypergraph.
 
     Reports total node and edge counts, broken down by type.
     """

@@ -1,7 +1,7 @@
 [project]
 name = "hypabase"
-version = "0.1.0"
-description = "A Python library for storing and querying n-ary relationships with provenance tracking. SQLite-backed, zero configuration."
+version = "0.1.1"
+description = "A Python hypergraph library with provenance and SQLite persistence."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
