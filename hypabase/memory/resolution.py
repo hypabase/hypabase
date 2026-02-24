@@ -134,12 +134,16 @@ class EntityResolver:
         """Find a matching node by embedding similarity."""
         try:
             results = self._hb.search(
-                name, limit=1, kind="node", min_score=self._similarity_threshold,
+                name,
+                limit=1,
+                kind="node",
+                min_score=self._similarity_threshold,
             )
         except (ImportError, ValueError):
             return None
         if results:
-            return results[0]["ref_id"]
+            ref_id: str = results[0]["ref_id"]
+            return ref_id
         return None
 
     def _add_alias(self, node_id: str, alias: str) -> None:

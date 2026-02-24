@@ -9,12 +9,13 @@ import sys
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from mcp.server.fastmcp import FastMCP
 
 from hypabase.client import Hypabase
 from hypabase.memory import Memory
+from hypabase.memory.types import KarakaRole, MemoryType, Mood, ResolutionAction
 
 # All logging goes to stderr — stdout is reserved for JSON-RPC
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -191,9 +192,9 @@ def remember(
         action=action,
         entities=entities,
         text=text,
-        memory_type=memory_type,
+        memory_type=cast(MemoryType | None, memory_type),
         importance=importance,
-        mood=mood,
+        mood=cast(Mood | None, mood),
         negated=negated,
         source=source,
         confidence=confidence,
@@ -257,9 +258,9 @@ def recall(
     results = mem.recall(
         entity=entity,
         action=action,
-        role=role,
-        memory_type=memory_type,
-        mood=mood,
+        role=cast(KarakaRole | None, role),
+        memory_type=cast(MemoryType | None, memory_type),
+        mood=cast(Mood | None, mood),
         negated=negated,
         since=since_dt,
         before=before_dt,
@@ -414,7 +415,7 @@ def resolve_contradiction(
             "keep_both" (both remain active), or "keep_old" (expire new).
     """
     mem = _get_memory()
-    return mem.resolve_contradiction(new_edge_id, old_edge_id, resolution)
+    return mem.resolve_contradiction(new_edge_id, old_edge_id, cast(ResolutionAction, resolution))
 
 
 # ===================================================================

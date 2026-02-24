@@ -9,7 +9,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 from hypabase.engine.core import (
     Hyperedge as CoreEdge,
@@ -63,7 +63,7 @@ def _core_edge_to_model(ce: CoreEdge) -> Edge:
             Incidence(
                 node_id=inc.node_id,
                 edge_ref_id=inc.edge_ref_id,
-                direction=inc.direction,
+                direction=cast(Literal["head", "tail"] | None, inc.direction),
                 properties=inc.properties,
             )
             for inc in ce.incidences
@@ -1110,7 +1110,11 @@ class Hypabase:
         """
         if self._storage is None:
             return 0
-        return self._storage.rebuild_vec_index()
+        rebuild = getattr(self._storage, "rebuild_vec_index", None)
+        if rebuild is None:
+            return 0
+        result: int = rebuild()
+        return result
 
     # --- Vector search ---
 
@@ -1218,7 +1222,7 @@ class Hypabase:
 
         # When kind and type are both specified, filter at the SQL level
         sql_type_filter = type if kind in ("node", "edge") and type is not None else None
-        raw_results = self._storage.search_vec(
+        raw_results = self._storage.search_vec(  # type: ignore[call-arg]
             self._current_ns,
             query_blob,
             limit=limit * 2,

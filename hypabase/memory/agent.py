@@ -64,7 +64,8 @@ class Memory:
             self._hb = Hypabase(path, database=database, embedder=embedder)
         self._embedder = embedder or getattr(self._hb, "_embedder", None)
         self._resolver = EntityResolver(
-            self._hb, embedder=self._embedder,
+            self._hb,
+            embedder=self._embedder,
         )
         self._resolver.warm_cache()
 
@@ -112,21 +113,14 @@ class Memory:
         if not action or not action.strip():
             raise ValueError("action is required (the verb).")
         if len(entities) < 2:
-            raise ValueError(
-                "A memory needs at least 2 entities — it's a hyperedge. "
-                f"Got {len(entities)}."
-            )
+            raise ValueError(f"A memory needs at least 2 entities — it's a hyperedge. Got {len(entities)}.")
         for i, ent in enumerate(entities):
             if "name" not in ent or not ent["name"].strip():
                 raise ValueError(f"Entity at index {i} is missing 'name'.")
         if mood is not None and mood not in MOODS:
-            raise ValueError(
-                f"Unknown mood {mood!r}. Must be one of: actual, planned, uncertain, normative."
-            )
+            raise ValueError(f"Unknown mood {mood!r}. Must be one of: actual, planned, uncertain, normative.")
         if memory_type is not None and memory_type not in MEMORY_TYPES:
-            raise ValueError(
-                f"Unknown memory_type {memory_type!r}. Must be one of: episodic, semantic, procedural."
-            )
+            raise ValueError(f"Unknown memory_type {memory_type!r}. Must be one of: episodic, semantic, procedural.")
 
         action = action.strip().lower()
 
@@ -135,7 +129,8 @@ class Memory:
         roles: list[str | None] = []
         for ent in entities:
             resolved_id = self._resolver.resolve(
-                ent["name"], entity_type=ent.get("type", "entity"),
+                ent["name"],
+                entity_type=ent.get("type", "entity"),
             )
             self._hb.node(resolved_id, type=ent.get("type", "entity"))
             node_ids.append(resolved_id)
@@ -236,9 +231,7 @@ class Memory:
             ValueError: If no filter dimension is provided.
         """
         if entity is None and action is None and memory_type is None and mood is None:
-            raise ValueError(
-                "At least one of entity, action, memory_type, or mood must be provided."
-            )
+            raise ValueError("At least one of entity, action, memory_type, or mood must be provided.")
         if role is not None and entity is None:
             raise ValueError(
                 "role filter requires entity to be specified. "
@@ -264,29 +257,35 @@ class Memory:
 
         if seed_nodes:
             edge_scores = self._spreading_activation(
-                seed_nodes, depth=2, decay=0.5,
+                seed_nodes,
+                depth=2,
+                decay=0.5,
             )
             for edge_id, activation in edge_scores.items():
                 if edge_id not in seen_edge_ids:
                     edge = self._hb.get_edge(edge_id)
                     if edge is not None and edge.is_active:
                         seen_edge_ids.add(edge_id)
-                        candidates.append({
-                            "edge": edge,
-                            "score": activation,
-                            "text": edge.properties.get("text", ""),
-                        })
+                        candidates.append(
+                            {
+                                "edge": edge,
+                                "score": activation,
+                                "text": edge.properties.get("text", ""),
+                            }
+                        )
         else:
             # No entity provided — scan all active edges (filter-only mode)
             all_edges = self._hb.edges(active=True)
             for edge in all_edges:
                 if edge.type in ("same_as", "consolidated"):
                     continue
-                candidates.append({
-                    "edge": edge,
-                    "score": 0.5,
-                    "text": edge.properties.get("text", ""),
-                })
+                candidates.append(
+                    {
+                        "edge": edge,
+                        "score": 0.5,
+                        "text": edge.properties.get("text", ""),
+                    }
+                )
 
         if not candidates:
             return []
@@ -295,44 +294,34 @@ class Memory:
         if action is not None:
             candidates = [c for c in candidates if c["edge"].type == action]
         if memory_type is not None:
-            candidates = [
-                c for c in candidates
-                if c["edge"].properties.get("memory_type") == memory_type
-            ]
+            candidates = [c for c in candidates if c["edge"].properties.get("memory_type") == memory_type]
         if role is not None:
             if original_entity_ids:
                 # When entities provided, check role for the original query entities
                 # (not the semantically-expanded seed set)
                 candidates = [
-                    c for c in candidates
-                    if self._edge_has_role_for_seeds(c["edge"], role, original_entity_ids)
+                    c for c in candidates if self._edge_has_role_for_seeds(c["edge"], role, original_entity_ids)
                 ]
             else:
                 # No entities — check if any node has the role
                 candidates = [c for c in candidates if self._edge_has_role(c["edge"], role)]
         if mood is not None:
-            candidates = [
-                c for c in candidates
-                if c["edge"].properties.get("mood", "actual") == mood
-            ]
+            candidates = [c for c in candidates if c["edge"].properties.get("mood", "actual") == mood]
         if negated is not None:
-            candidates = [
-                c for c in candidates
-                if c["edge"].properties.get("negated", False) == negated
-            ]
+            candidates = [c for c in candidates if c["edge"].properties.get("negated", False) == negated]
         if since is not None:
             since_ts = since.timestamp()
             candidates = [
-                c for c in candidates
-                if c["edge"].created_at is not None
-                and c["edge"].created_at.timestamp() >= since_ts
+                c
+                for c in candidates
+                if c["edge"].created_at is not None and c["edge"].created_at.timestamp() >= since_ts
             ]
         if before is not None:
             before_ts = before.timestamp()
             candidates = [
-                c for c in candidates
-                if c["edge"].created_at is not None
-                and c["edge"].created_at.timestamp() <= before_ts
+                c
+                for c in candidates
+                if c["edge"].created_at is not None and c["edge"].created_at.timestamp() <= before_ts
             ]
 
         if not candidates:
@@ -341,9 +330,7 @@ class Memory:
         # Batch record access — single commit
         all_edge_ids = [c["edge"].id for c in candidates]
         if self._hb.storage is not None:
-            self._hb.storage.record_access_batch(
-                self._hb.current_namespace, "edge", all_edge_ids
-            )
+            self._hb.storage.record_access_batch(self._hb.current_namespace, "edge", all_edge_ids)
 
         # Batch fetch stats — single query
         batch_stats = self._get_batch_access_stats("edge", all_edge_ids)
@@ -364,17 +351,19 @@ class Memory:
             )
             if strength >= min_strength:
                 edge_roles = self._extract_roles(edge)
-                results.append({
-                    "edge": edge,
-                    "score": round(c["score"], 6),
-                    "strength": round(strength, 6),
-                    "text": c["text"],
-                    "action": edge.type,
-                    "memory_type": edge_memory_type,
-                    "mood": edge.properties.get("mood", "actual"),
-                    "negated": edge.properties.get("negated", False),
-                    "roles": edge_roles,
-                })
+                results.append(
+                    {
+                        "edge": edge,
+                        "score": round(c["score"], 6),
+                        "strength": round(strength, 6),
+                        "text": c["text"],
+                        "action": edge.type,
+                        "memory_type": edge_memory_type,
+                        "mood": edge.properties.get("mood", "actual"),
+                        "negated": edge.properties.get("negated", False),
+                        "roles": edge_roles,
+                    }
+                )
 
         return heapq.nlargest(limit, results, key=lambda x: x["score"] * x["strength"])
 
@@ -407,9 +396,7 @@ class Memory:
             (number of memories without explicit mood that were protected).
         """
         if older_than is None and min_strength is None and entity is None and memory_type is None and mood is None:
-            raise ValueError(
-                "At least one filter required: older_than, min_strength, entity, memory_type, or mood"
-            )
+            raise ValueError("At least one filter required: older_than, min_strength, entity, memory_type, or mood")
 
         # Build kwargs for edges() to push filtering down
         edge_kwargs: dict[str, Any] = {"active": True, "include_expired": False}
@@ -472,9 +459,9 @@ class Memory:
             # Prune orphaned same_as edges for affected entities
             affected_nodes: set[str] = set()
             for eid in to_expire:
-                edge = self._hb.get_edge(eid)
-                if edge:
-                    affected_nodes.update(edge.node_ids)
+                expired_edge = self._hb.get_edge(eid)
+                if expired_edge:
+                    affected_nodes.update(expired_edge.node_ids)
             self._prune_orphaned_same_as(affected_nodes)
 
         result = {"expired_count": len(to_expire)}
@@ -538,11 +525,13 @@ class Memory:
                             "source_edge_ids": source_ids,
                         },
                     )
-                    summaries.append({
-                        "edge_id": edge.id,
-                        "entities": node_list,
-                        "source_edge_ids": source_ids,
-                    })
+                    summaries.append(
+                        {
+                            "edge_id": edge.id,
+                            "entities": node_list,
+                            "source_edge_ids": source_ids,
+                        }
+                    )
 
             # Fall back to pairwise co-occurrence for cross-group patterns
             pair_counts: Counter[tuple[str, str]] = Counter()
@@ -566,10 +555,12 @@ class Memory:
                     confidence=min(1.0, count / 10.0),
                     properties={"co_occurrence_count": count},
                 )
-                summaries.append({
-                    "edge_id": edge.id,
-                    "entities": [a, b],
-                })
+                summaries.append(
+                    {
+                        "edge_id": edge.id,
+                        "entities": [a, b],
+                    }
+                )
 
         return summaries
 
@@ -628,12 +619,14 @@ class Memory:
                     continue
 
                 visited_edges.add(edge.id)
-                all_edges.append({
-                    "id": edge.id,
-                    "type": edge.type,
-                    "node_ids": edge.node_ids,
-                    "text": edge.properties.get("text", ""),
-                })
+                all_edges.append(
+                    {
+                        "id": edge.id,
+                        "type": edge.type,
+                        "node_ids": edge.node_ids,
+                        "text": edge.properties.get("text", ""),
+                    }
+                )
 
                 # Enqueue unvisited neighbor nodes
                 for nid in edge.node_ids:
@@ -701,10 +694,7 @@ class Memory:
                 has_memory = False
                 for endpoint in edge.node_ids:
                     node_edges = self._hb.edges_of_node(endpoint)
-                    if any(
-                        e.is_active and e.type not in ("same_as", "consolidated")
-                        for e in node_edges
-                    ):
+                    if any(e.is_active and e.type not in ("same_as", "consolidated") for e in node_edges):
                         has_memory = True
                         break
                 if not has_memory:
@@ -742,18 +732,18 @@ class Memory:
                     continue
                 # Check if the existing edge has different objects
                 existing_roles = self._extract_roles(existing)
-                existing_objects = [
-                    nid for nid, r in existing_roles.items() if r == "object"
-                ]
+                existing_objects = [nid for nid, r in existing_roles.items() if r == "object"]
                 if existing_objects and set(existing_objects) != set(objects):
-                    contradictions.append({
-                        "existing_edge_id": existing.id,
-                        "new_edge_id": edge.id,
-                        "description": (
-                            f"Existing memory has {agent_name} {action} "
-                            f"{existing_objects} but new memory says {objects}"
-                        ),
-                    })
+                    contradictions.append(
+                        {
+                            "existing_edge_id": existing.id,
+                            "new_edge_id": edge.id,
+                            "description": (
+                                f"Existing memory has {agent_name} {action} "
+                                f"{existing_objects} but new memory says {objects}"
+                            ),
+                        }
+                    )
         return contradictions
 
     def _expand_entities(self, names: list[str]) -> dict[str, float]:
@@ -780,7 +770,10 @@ class Memory:
             if self._embedder is not None and self._hb.storage is not None:
                 try:
                     similar_nodes = self._hb.search(
-                        name, kind="node", limit=3, min_score=0.7,
+                        name,
+                        kind="node",
+                        limit=3,
+                        min_score=0.7,
                     )
                     for s in similar_nodes:
                         if s["ref_id"] not in seed_nodes:
@@ -830,9 +823,7 @@ class Memory:
         edge_activation: dict[str, float] = {}
         visited_nodes: set[str] = set(seed_nodes.keys())
 
-        queue: deque[tuple[str, float, int]] = deque(
-            (nid, score, 0) for nid, score in seed_nodes.items()
-        )
+        queue: deque[tuple[str, float, int]] = deque((nid, score, 0) for nid, score in seed_nodes.items())
 
         while queue:
             node_id, activation, current_depth = queue.popleft()
@@ -924,9 +915,7 @@ class Memory:
         """Get access stats for multiple items in one query."""
         if self._hb.storage is None:
             return {}
-        return self._hb.storage.get_batch_access_stats(
-            self._hb.current_namespace, kind, ref_ids
-        )
+        return self._hb.storage.get_batch_access_stats(self._hb.current_namespace, kind, ref_ids)
 
 
 # Backward-compat alias

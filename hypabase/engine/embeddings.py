@@ -49,7 +49,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
         try:
-            from sentence_transformers import SentenceTransformer
+            from sentence_transformers import SentenceTransformer  # type: ignore[import-not-found]
         except ImportError as e:
             raise ImportError(
                 "sentence-transformers is required for SentenceTransformerProvider. "
@@ -65,14 +65,16 @@ class SentenceTransformerProvider(EmbeddingProvider):
         self._dimension = dim
 
     def embed(self, text: str) -> list[float]:
-        return self._model.encode(text).tolist()
+        result: list[float] = self._model.encode(text).tolist()
+        return result
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        return self._model.encode(texts).tolist()
+        result: list[list[float]] = self._model.encode(texts).tolist()
+        return result
 
     @property
     def dimension(self) -> int:
-        return self._dimension
+        return int(self._dimension)
 
 
 class FastEmbedProvider(EmbeddingProvider):
@@ -86,14 +88,13 @@ class FastEmbedProvider(EmbeddingProvider):
             from fastembed import TextEmbedding
         except ImportError as e:
             raise ImportError(
-                "fastembed is required for FastEmbedProvider. "
-                "Install it with: pip install fastembed"
+                "fastembed is required for FastEmbedProvider. Install it with: pip install fastembed"
             ) from e
         self._model = TextEmbedding(model_name=model_name)
         self._model_name = model_name
         # Resolve dimension from model metadata or probe
         try:
-            desc = self._model.model_description
+            desc = getattr(self._model, "model_description", None)
             if isinstance(desc, dict) and "dim" in desc:
                 self._dimension = int(desc["dim"])
             else:
@@ -104,7 +105,8 @@ class FastEmbedProvider(EmbeddingProvider):
 
     def embed(self, text: str) -> list[float]:
         results = list(self._model.embed([text]))
-        return results[0].tolist()
+        result: list[float] = results[0].tolist()
+        return result
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         if not texts:
@@ -132,19 +134,17 @@ class OpenAIProvider(EmbeddingProvider):
         dimensions: int = 1536,
     ) -> None:
         try:
-            import openai
+            import openai  # type: ignore[import-not-found]
         except ImportError as e:
-            raise ImportError(
-                "openai is required for OpenAIProvider. "
-                "Install it with: pip install openai"
-            ) from e
+            raise ImportError("openai is required for OpenAIProvider. Install it with: pip install openai") from e
         self._client = openai.OpenAI(api_key=api_key)
         self._model = model
         self._dimension = dimensions
 
     def embed(self, text: str) -> list[float]:
         resp = self._client.embeddings.create(input=[text], model=self._model)
-        return resp.data[0].embedding
+        result: list[float] = resp.data[0].embedding
+        return result
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         resp = self._client.embeddings.create(input=texts, model=self._model)

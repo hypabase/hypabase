@@ -28,10 +28,11 @@ from hypabase.engine.persistence_engine import PersistenceEngine
 logger = logging.getLogger(__name__)
 
 
-def _safe_json_loads(raw: str, context: str) -> dict:
+def _safe_json_loads(raw: str, context: str) -> dict[str, object]:
     """Parse JSON with fallback to empty dict on decode errors."""
     try:
-        return json.loads(raw)
+        result: dict[str, object] = json.loads(raw)
+        return result
     except json.JSONDecodeError:
         logger.warning("Corrupt JSON in %s, using empty dict: %s", context, raw[:100])
         return {}
@@ -162,8 +163,7 @@ class SQLiteStorage(PersistenceEngine):
             import sqlite_vec  # type: ignore[import-untyped]
         except ImportError as e:
             raise ImportError(
-                "sqlite-vec is required but not installed or failed to load. "
-                "Install with: pip install sqlite-vec"
+                "sqlite-vec is required but not installed or failed to load. Install with: pip install sqlite-vec"
             ) from e
         self._conn.enable_load_extension(True)
         sqlite_vec.load(self._conn)
@@ -171,14 +171,10 @@ class SQLiteStorage(PersistenceEngine):
     def _init_schema(self) -> None:
         conn = self._conn
         # Check if meta table exists (i.e., schema already initialized)
-        has_meta = conn.execute(
-            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='meta'"
-        ).fetchone()[0]
+        has_meta = conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='meta'").fetchone()[0]
 
         if has_meta:
-            row = conn.execute(
-                "SELECT value FROM meta WHERE key = 'schema_version'"
-            ).fetchone()
+            row = conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()
             if row is None:
                 raise ValueError(
                     f"Database has meta table but no schema_version key. "
@@ -190,13 +186,10 @@ class SQLiteStorage(PersistenceEngine):
                 # Migrate v3 -> v4: rebuild incidences table to add
                 # ref_edge_id column with CHECK constraint.
                 # Validate existing data before migration
-                invalid = conn.execute(
-                    "SELECT COUNT(*) FROM incidences WHERE node_id IS NULL"
-                ).fetchone()[0]
+                invalid = conn.execute("SELECT COUNT(*) FROM incidences WHERE node_id IS NULL").fetchone()[0]
                 if invalid > 0:
                     raise ValueError(
-                        f"Migration v3->v4 failed: found {invalid} incidences "
-                        f"with NULL node_id in v3 database"
+                        f"Migration v3->v4 failed: found {invalid} incidences with NULL node_id in v3 database"
                     )
                 try:
                     conn.execute("BEGIN IMMEDIATE")
@@ -226,21 +219,10 @@ class SQLiteStorage(PersistenceEngine):
                     """)
                     conn.execute("DROP TABLE incidences")
                     conn.execute("ALTER TABLE incidences_v4 RENAME TO incidences")
-                    conn.execute(
-                        "CREATE INDEX IF NOT EXISTS idx_incidences_node"
-                        " ON incidences(node_id)"
-                    )
-                    conn.execute(
-                        "CREATE INDEX IF NOT EXISTS idx_incidences_edge"
-                        " ON incidences(edge_id)"
-                    )
-                    conn.execute(
-                        "CREATE INDEX IF NOT EXISTS idx_incidences_ns"
-                        " ON incidences(namespace)"
-                    )
-                    conn.execute(
-                        "UPDATE meta SET value = '4' WHERE key = 'schema_version'"
-                    )
+                    conn.execute("CREATE INDEX IF NOT EXISTS idx_incidences_node ON incidences(node_id)")
+                    conn.execute("CREATE INDEX IF NOT EXISTS idx_incidences_edge ON incidences(edge_id)")
+                    conn.execute("CREATE INDEX IF NOT EXISTS idx_incidences_ns ON incidences(namespace)")
+                    conn.execute("UPDATE meta SET value = '4' WHERE key = 'schema_version'")
                     conn.commit()
                 except Exception:
                     conn.rollback()
@@ -264,9 +246,7 @@ class SQLiteStorage(PersistenceEngine):
 
         # Fresh database — create all tables with v5 schema
         conn.executescript(_SCHEMA_V5)
-        conn.execute(
-            "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '5')"
-        )
+        conn.execute("INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '5')")
         conn.commit()
 
     def _migrate_v4_to_v5(self) -> None:
@@ -285,18 +265,10 @@ class SQLiteStorage(PersistenceEngine):
             conn.execute("ALTER TABLE edges ADD COLUMN expired_at REAL")
 
             # Create temporal indexes
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_edges_expired ON edges(expired_at)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_edges_valid ON edges(valid_at)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_edges_created ON edges(created_at)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_nodes_created ON nodes(created_at)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_expired ON edges(expired_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_valid ON edges(valid_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_created ON edges(created_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_created ON nodes(created_at)")
 
             # Create embeddings table
             conn.execute("""
@@ -311,15 +283,9 @@ class SQLiteStorage(PersistenceEngine):
                     model TEXT NOT NULL
                 )
             """)
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_embeddings_ns_kind"
-                " ON embeddings(namespace, kind)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_embeddings_ns_kind ON embeddings(namespace, kind)")
             conn.execute("DROP INDEX IF EXISTS idx_embeddings_ns")
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_embeddings_kind"
-                " ON embeddings(kind, ref_id)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_embeddings_kind ON embeddings(kind, ref_id)")
 
             # Create access_log table
             conn.execute("""
@@ -333,17 +299,10 @@ class SQLiteStorage(PersistenceEngine):
                     UNIQUE (namespace, kind, ref_id)
                 )
             """)
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_access_log_ns ON access_log(namespace)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_access_log_ref"
-                " ON access_log(kind, ref_id)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_access_log_ns ON access_log(namespace)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_access_log_ref ON access_log(kind, ref_id)")
 
-            conn.execute(
-                "UPDATE meta SET value = '5' WHERE key = 'schema_version'"
-            )
+            conn.execute("UPDATE meta SET value = '5' WHERE key = 'schema_version'")
             conn.commit()
         except Exception:
             conn.rollback()
@@ -358,12 +317,8 @@ class SQLiteStorage(PersistenceEngine):
         """Persist all namespaces to SQLite (full overwrite per namespace)."""
         conn = self._conn
         # Get existing namespaces in DB
-        existing_ns = {
-            row[0]
-            for row in conn.execute("SELECT DISTINCT namespace FROM nodes").fetchall()
-        } | {
-            row[0]
-            for row in conn.execute("SELECT DISTINCT namespace FROM edges").fetchall()
+        existing_ns = {row[0] for row in conn.execute("SELECT DISTINCT namespace FROM nodes").fetchall()} | {
+            row[0] for row in conn.execute("SELECT DISTINCT namespace FROM edges").fetchall()
         }
         # Delete namespaces that are no longer in stores
         for ns in existing_ns:
@@ -389,9 +344,7 @@ class SQLiteStorage(PersistenceEngine):
             created_at = node.created_at  # None is valid for migrated data
             updated_at = node.updated_at
             conn.execute(
-                "INSERT INTO nodes"
-                " (id, namespace, type, properties, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO nodes (id, namespace, type, properties, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     node.id,
                     namespace,
@@ -439,8 +392,7 @@ class SQLiteStorage(PersistenceEngine):
             if edge.node_set:
                 vsh = _vertex_set_hash(edge.node_set)
                 conn.execute(
-                    "INSERT INTO vertex_set_index (vertex_set_hash, edge_id, namespace)"
-                    " VALUES (?, ?, ?)",
+                    "INSERT INTO vertex_set_index (vertex_set_hash, edge_id, namespace) VALUES (?, ?, ?)",
                     (vsh, edge.id, namespace),
                 )
 
@@ -452,8 +404,7 @@ class SQLiteStorage(PersistenceEngine):
         conn = self._conn
 
         for row in conn.execute(
-            "SELECT id, type, properties, created_at, updated_at"
-            " FROM nodes WHERE namespace = ?",
+            "SELECT id, type, properties, created_at, updated_at FROM nodes WHERE namespace = ?",
             (namespace,),
         ).fetchall():
             store.add_node(
@@ -550,21 +501,14 @@ class SQLiteStorage(PersistenceEngine):
             (id, namespace, kind, ref_id, text, embedding, dimension, model),
         )
         self._ensure_vec_table(dimension)
-        row = self._conn.execute(
-            "SELECT rowid FROM embeddings WHERE id = ?", (id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT rowid FROM embeddings WHERE id = ?", (id,)).fetchone()
         if row is None:
-            raise RuntimeError(
-                f"Embedding '{id}' not found after insert — database may be corrupted"
-            )
+            raise RuntimeError(f"Embedding '{id}' not found after insert — database may be corrupted")
         rowid = row[0]
         # Delete old vec entry (handles upsert case)
+        self._conn.execute("DELETE FROM vec_embeddings WHERE rowid = ?", (rowid,))
         self._conn.execute(
-            "DELETE FROM vec_embeddings WHERE rowid = ?", (rowid,)
-        )
-        self._conn.execute(
-            "INSERT INTO vec_embeddings(rowid, namespace_hash, embedding)"
-            " VALUES (?, ?, ?)",
+            "INSERT INTO vec_embeddings(rowid, namespace_hash, embedding) VALUES (?, ?, ?)",
             (rowid, self._ns_hash(namespace), embedding),
         )
         self._auto_commit()
@@ -586,8 +530,7 @@ class SQLiteStorage(PersistenceEngine):
             ).fetchall()
         else:
             rows = self._conn.execute(
-                "SELECT id, kind, ref_id, text, embedding, dimension, model"
-                " FROM embeddings WHERE namespace = ?",
+                "SELECT id, kind, ref_id, text, embedding, dimension, model FROM embeddings WHERE namespace = ?",
                 (namespace,),
             ).fetchall()
         return [
@@ -623,9 +566,7 @@ class SQLiteStorage(PersistenceEngine):
                     (namespace,),
                 ).fetchall()
             for (rid,) in affected:
-                self._conn.execute(
-                    "DELETE FROM vec_embeddings WHERE rowid = ?", (rid,)
-                )
+                self._conn.execute("DELETE FROM vec_embeddings WHERE rowid = ?", (rid,))
 
         if kind is not None and ref_id is not None:
             cursor = self._conn.execute(
@@ -653,9 +594,7 @@ class SQLiteStorage(PersistenceEngine):
             "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='embeddings'"
         ).fetchone()[0]
         if has_embeddings:
-            row = self._conn.execute(
-                "SELECT dimension FROM embeddings LIMIT 1"
-            ).fetchone()
+            row = self._conn.execute("SELECT dimension FROM embeddings LIMIT 1").fetchone()
             if row:
                 # _vec_dimension is still None here, so _ensure_vec_table
                 # will create/migrate the vec table and set _vec_dimension.
@@ -699,8 +638,7 @@ class SQLiteStorage(PersistenceEngine):
             (dimension,),
         ).fetchall()
         self._conn.executemany(
-            "INSERT INTO vec_embeddings(rowid, namespace_hash, embedding)"
-            " VALUES (?, ?, ?)",
+            "INSERT INTO vec_embeddings(rowid, namespace_hash, embedding) VALUES (?, ?, ?)",
             [(rowid, self._ns_hash(ns), blob) for rowid, ns, blob in rows],
         )
         self._auto_commit()
@@ -711,9 +649,7 @@ class SQLiteStorage(PersistenceEngine):
 
         Returns number of embeddings re-indexed, or 0 if none exist.
         """
-        row = self._conn.execute(
-            "SELECT dimension FROM embeddings LIMIT 1"
-        ).fetchone()
+        row = self._conn.execute("SELECT dimension FROM embeddings LIMIT 1").fetchone()
         if row is None:
             return 0
         dimension = row[0]
@@ -727,10 +663,11 @@ class SQLiteStorage(PersistenceEngine):
         self._vec_dimension = None
         self._ensure_vec_table(dimension)
 
-        return self._conn.execute(
+        count: int = self._conn.execute(
             "SELECT count(*) FROM embeddings WHERE dimension = ?",
             (dimension,),
         ).fetchone()[0]
+        return count
 
     def search_vec(
         self,
@@ -751,8 +688,7 @@ class SQLiteStorage(PersistenceEngine):
         # so use a higher multiplier to avoid returning fewer than `limit`.
         fetch_limit = limit * 4 if (kind or type_filter) else limit * 2
         knn_rows = self._conn.execute(
-            "SELECT rowid, distance FROM vec_embeddings"
-            " WHERE embedding MATCH ? AND k = ? AND namespace_hash = ?",
+            "SELECT rowid, distance FROM vec_embeddings WHERE embedding MATCH ? AND k = ? AND namespace_hash = ?",
             (query_embedding, fetch_limit, self._ns_hash(namespace)),
         ).fetchall()
 
@@ -799,15 +735,17 @@ class SQLiteStorage(PersistenceEngine):
             # Clamp to [0, 1]: min guards float rounding above 1, max floors
             # dissimilar (negative) scores to 0 since they're never useful in search.
             score = max(0.0, min(1.0, 1.0 - distance))
-            results.append({
-                "id": r[1],
-                "kind": r[2],
-                "ref_id": r[3],
-                "text": r[4],
-                "dimension": r[5],
-                "model": r[6],
-                "score": score,
-            })
+            results.append(
+                {
+                    "id": r[1],
+                    "kind": r[2],
+                    "ref_id": r[3],
+                    "text": r[4],
+                    "dimension": r[5],
+                    "model": r[6],
+                    "score": score,
+                }
+            )
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:limit]
 
@@ -825,9 +763,7 @@ class SQLiteStorage(PersistenceEngine):
         )
         self._auto_commit()
 
-    def record_access_batch(
-        self, namespace: str, kind: str, ref_ids: list[str]
-    ) -> None:
+    def record_access_batch(self, namespace: str, kind: str, ref_ids: list[str]) -> None:
         """Record access events for multiple items in a single commit."""
         if not ref_ids:
             return
@@ -844,17 +780,14 @@ class SQLiteStorage(PersistenceEngine):
     def get_access_stats(self, namespace: str, kind: str, ref_id: str) -> dict | None:
         """Get access stats for a specific item."""
         row = self._conn.execute(
-            "SELECT last_accessed, access_count FROM access_log"
-            " WHERE namespace = ? AND kind = ? AND ref_id = ?",
+            "SELECT last_accessed, access_count FROM access_log WHERE namespace = ? AND kind = ? AND ref_id = ?",
             (namespace, kind, ref_id),
         ).fetchone()
         if row is None:
             return None
         return {"last_accessed": row[0], "access_count": row[1]}
 
-    def get_batch_access_stats(
-        self, namespace: str, kind: str, ref_ids: list[str]
-    ) -> dict[str, dict]:
+    def get_batch_access_stats(self, namespace: str, kind: str, ref_ids: list[str]) -> dict[str, dict]:
         """Get access stats for multiple items in a single query.
 
         Returns a dict mapping ref_id -> stats dict. Missing items are omitted.
@@ -867,16 +800,12 @@ class SQLiteStorage(PersistenceEngine):
             f" WHERE namespace = ? AND kind = ? AND ref_id IN ({placeholders})",
             [namespace, kind, *ref_ids],
         ).fetchall()
-        return {
-            r[0]: {"last_accessed": r[1], "access_count": r[2]}
-            for r in rows
-        }
+        return {r[0]: {"last_accessed": r[1], "access_count": r[2]} for r in rows}
 
     def get_all_access_stats(self, namespace: str) -> list[dict]:
         """Get all access stats for a namespace."""
         rows = self._conn.execute(
-            "SELECT kind, ref_id, last_accessed, access_count"
-            " FROM access_log WHERE namespace = ?",
+            "SELECT kind, ref_id, last_accessed, access_count FROM access_log WHERE namespace = ?",
             (namespace,),
         ).fetchall()
         return [
@@ -963,9 +892,7 @@ class SQLiteStorage(PersistenceEngine):
         if edge.node_set:
             vsh = _vertex_set_hash(edge.node_set)
             conn.execute(
-                "INSERT OR IGNORE INTO vertex_set_index"
-                " (vertex_set_hash, edge_id, namespace)"
-                " VALUES (?, ?, ?)",
+                "INSERT OR IGNORE INTO vertex_set_index (vertex_set_hash, edge_id, namespace) VALUES (?, ?, ?)",
                 (vsh, edge.id, namespace),
             )
         self._auto_commit()
