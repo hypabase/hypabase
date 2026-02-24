@@ -8,7 +8,7 @@ import os
 import sys
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -97,12 +97,12 @@ mcp = FastMCP(
     "Hypabase Memory",
     instructions=(
         "You have persistent memory.\n"
-        "- remember(action=\"...\", entities=[...]) — store a memory\n"
-        "- recall(entity=\"...\") — find memories\n"
+        '- remember(action="...", entities=[...]) — store a memory\n'
+        '- recall(entity="...") — find memories\n'
         "- forget(older_than_days=30) — clean up\n\n"
-        "Example: remember(action=\"uses\", entities=["
-        "{\"name\": \"Alice\", \"role\": \"agent\"}, "
-        "{\"name\": \"Python\", \"role\": \"object\"}])\n\n"
+        'Example: remember(action="uses", entities=['
+        '{"name": "Alice", "role": "agent"}, '
+        '{"name": "Python", "role": "object"}])\n\n'
         "Each memory is an ACTION with PARTICIPANTS in ROLES "
         "(agent=who, object=what, instrument=how, recipient=for whom, "
         "source=from where, locus=where/when).\n"
@@ -118,10 +118,7 @@ mcp = FastMCP(
 def _get_memory() -> Memory:
     """Return the memory agent, raising if not initialized."""
     if _MEMORY is None:
-        raise RuntimeError(
-            "Memory module is not enabled. "
-            "Server lifespan has not run yet."
-        )
+        raise RuntimeError("Memory module is not enabled. Server lifespan has not run yet.")
     return _MEMORY
 
 
@@ -136,6 +133,7 @@ def _safe_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
         except Exception as exc:
             logger.exception("Tool %s failed", fn.__name__)
             return {"error": True, "category": "internal", "type": type(exc).__name__, "message": str(exc)}
+
     return wrapper
 
 
@@ -326,7 +324,7 @@ def forget(
     mem = _get_memory()
     older_than = None
     if older_than_days is not None:
-        older_than = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+        older_than = datetime.now(UTC) - timedelta(days=older_than_days)
     return mem.forget(
         older_than=older_than,
         min_strength=min_strength,
@@ -369,8 +367,7 @@ def who_knows_what() -> dict:
 
     # Find top entities by edge count
     top_entities = [
-        {"entity": node.id, "type": node.type, "connections": degree}
-        for node, degree in hb.top_nodes_by_degree(20)
+        {"entity": node.id, "type": node.type, "connections": degree} for node, degree in hb.top_nodes_by_degree(20)
     ]
 
     # Memory type and mood breakdown (exclude infrastructure edges)

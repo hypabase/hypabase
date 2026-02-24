@@ -7,7 +7,7 @@ import uuid
 from collections import deque
 from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +35,7 @@ def _ts_to_dt(ts: float | None) -> datetime | None:
     """Convert a Unix timestamp to a timezone-aware datetime, or None."""
     if ts is None:
         return None
-    return datetime.fromtimestamp(ts, tz=timezone.utc)
+    return datetime.fromtimestamp(ts, tz=UTC)
 
 
 def _dt_to_ts(dt: datetime | None) -> float | None:
@@ -321,9 +321,7 @@ class Hypabase:
                 existing.properties.update(properties)
             existing.updated_at = now
         else:
-            self._store.add_node(
-                CoreNode(id=id, type=type, properties=properties, created_at=now, updated_at=now)
-            )
+            self._store.add_node(CoreNode(id=id, type=type, properties=properties, created_at=now, updated_at=now))
         core_node = self._store.get_node(id)
         if core_node is None:
             raise RuntimeError(f"Node {id!r} should exist after add_node")
@@ -482,9 +480,7 @@ class Hypabase:
         if any(not n for n in nodes):
             raise ValueError("Node IDs must be non-empty strings")
         if roles is not None and len(roles) != len(nodes):
-            raise ValueError(
-                f"roles length ({len(roles)}) must match nodes length ({len(nodes)})"
-            )
+            raise ValueError(f"roles length ({len(roles)}) must match nodes length ({len(nodes)})")
 
         edge_id = id or str(uuid.uuid4())
         resolved_source = source or self._context_source or "unknown"
@@ -511,19 +507,11 @@ class Hypabase:
         if directed:
             incidences = [
                 CoreIncidence(node_id=nodes[0], direction="tail", properties=_inc_props(0)),
-                *[
-                    CoreIncidence(node_id=nodes[i], properties=_inc_props(i))
-                    for i in range(1, len(nodes) - 1)
-                ],
-                CoreIncidence(
-                    node_id=nodes[-1], direction="head", properties=_inc_props(len(nodes) - 1)
-                ),
+                *[CoreIncidence(node_id=nodes[i], properties=_inc_props(i)) for i in range(1, len(nodes) - 1)],
+                CoreIncidence(node_id=nodes[-1], direction="head", properties=_inc_props(len(nodes) - 1)),
             ]
         else:
-            incidences = [
-                CoreIncidence(node_id=n, properties=_inc_props(i))
-                for i, n in enumerate(nodes)
-            ]
+            incidences = [CoreIncidence(node_id=n, properties=_inc_props(i)) for i, n in enumerate(nodes)]
 
         core_edge = CoreEdge(
             id=edge_id,
@@ -805,11 +793,7 @@ class Hypabase:
             edge_types=edge_types,
             exclude_self=True,
         )
-        return [
-            _core_node_to_model(n)
-            for nid in neighbor_ids
-            if (n := self._store.get_node(nid)) is not None
-        ]
+        return [_core_node_to_model(n) for nid in neighbor_ids if (n := self._store.get_node(nid)) is not None]
 
     def paths(
         self,
@@ -927,10 +911,7 @@ class Hypabase:
         Returns:
             List of (Node, degree) tuples, most connected first.
         """
-        return [
-            (_core_node_to_model(cn), degree)
-            for cn, degree in self._store.top_nodes_by_degree(k)
-        ]
+        return [(_core_node_to_model(cn), degree) for cn, degree in self._store.top_nodes_by_degree(k)]
 
     def edge_cardinality(self, edge_id: str) -> int:
         """Count how many distinct nodes an edge contains.
@@ -1057,10 +1038,7 @@ class Hypabase:
         Returns:
             List of edges containing this node.
         """
-        return [
-            _core_edge_to_model(e)
-            for e in self._store.get_edges_of_node(node_id, edge_types=edge_types)
-        ]
+        return [_core_edge_to_model(e) for e in self._store.get_edges_of_node(node_id, edge_types=edge_types)]
 
     @contextmanager
     def batch(self) -> Generator[None, None, None]:
@@ -1109,9 +1087,7 @@ class Hypabase:
         """Reload the current namespace from SQLite after a failed batch."""
         if self._storage:
             try:
-                self._stores[self._current_ns] = self._storage.load_namespace(
-                    self._current_ns
-                )
+                self._stores[self._current_ns] = self._storage.load_namespace(self._current_ns)
             except Exception as reload_err:
                 import warnings
 

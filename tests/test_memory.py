@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -353,7 +353,7 @@ class TestMemory:
 
     def test_recall_temporal_since(self, tmp_db_path):
         mem = Memory(path=tmp_db_path)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         mem.remember(
             action="met",
@@ -375,7 +375,7 @@ class TestMemory:
 
     def test_recall_temporal_before(self, tmp_db_path):
         mem = Memory(path=tmp_db_path)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         mem.remember(
             action="met",
@@ -447,7 +447,7 @@ class TestMemory:
             ],
         )
         # Forget everything older than the future (nothing should match)
-        future = datetime.now(timezone.utc) + timedelta(days=1)
+        future = datetime.now(UTC) + timedelta(days=1)
         count = mem.forget(older_than=future)["expired_count"]
         assert count >= 1
         mem.hb.close()
@@ -691,7 +691,7 @@ class TestMemory:
 
     def test_forget_entity_with_older_than(self, tmp_db_path):
         mem = Memory(path=tmp_db_path)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         old_ts = (now - timedelta(days=30)).timestamp()
 
         # Create an old Alice edge
@@ -959,9 +959,7 @@ class TestAccessTracking:
         edge_id = result["edge_id"]
         # Recall should update access count
         mem.recall(entity="Alice Smith")
-        stats = mem.hb._storage.get_access_stats(
-            mem.hb._current_ns, "edge", edge_id
-        )
+        stats = mem.hb._storage.get_access_stats(mem.hb._current_ns, "edge", edge_id)
         assert stats is not None
         assert stats["access_count"] >= 1
         mem.hb.close()
@@ -1018,7 +1016,7 @@ class TestForgetSQLPushdown:
 
     def test_forget_both_filters_pushes_older_than(self, tmp_db_path):
         mem = Memory(path=tmp_db_path)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         old_ts = (now - timedelta(days=30)).timestamp()
 
         # Create 5 old memories by backdating created_at
@@ -1065,7 +1063,7 @@ class TestForgetSQLPushdown:
         """When both older_than and min_strength are set, recent edges are not
         examined even if they have low strength."""
         mem = Memory(path=tmp_db_path)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         old_ts = (now - timedelta(days=30)).timestamp()
 
         # Create an old memory
@@ -1129,7 +1127,7 @@ class TestPerformanceOptimizations:
         from unittest.mock import patch
 
         mem = Memory(path=tmp_db_path)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         old_ts = (now - timedelta(days=30)).timestamp()
 
         result = mem.remember(
@@ -1277,9 +1275,7 @@ class TestPerformanceOptimizations:
                 edge_ids.append(result["edge_id"])
                 # Vary access counts to create distinct strengths
                 for _ in range(i):
-                    mem.hb.storage.record_access(
-                        mem.hb.current_namespace, "edge", result["edge_id"]
-                    )
+                    mem.hb.storage.record_access(mem.hb.current_namespace, "edge", result["edge_id"])
 
         # Get results with the optimized method
         results = mem.recall(entity="Alice Smith", limit=5)

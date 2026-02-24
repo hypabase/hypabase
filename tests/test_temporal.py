@@ -2,7 +2,7 @@
 
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from hypabase import Hypabase
 from hypabase.engine.core import Hyperedge, HypergraphCore, Incidence, Node
@@ -46,7 +46,7 @@ class TestEdgeTimestamps:
 
     def test_edge_valid_at(self):
         hb = Hypabase()
-        valid = datetime(2026, 2, 18, tzinfo=timezone.utc)
+        valid = datetime(2026, 2, 18, tzinfo=UTC)
         e = hb.edge(["alice", "bob"], type="meeting", valid_at=valid)
         assert e.valid_at is not None
         assert e.valid_at == valid
@@ -111,7 +111,9 @@ class TestSupersedeEdge:
         hb = Hypabase()
         old = hb.edge(["alice", "bob"], type="knows")
         result = hb.supersede_edge(
-            old.id, ["alice", "bob"], type="friends",
+            old.id,
+            ["alice", "bob"],
+            type="friends",
         )
         assert result is not None
         expired, new = result
@@ -139,7 +141,7 @@ class TestTemporalQueries:
         hb = Hypabase()
         hb.edge(["a", "b"], type="link")
         time.sleep(0.02)
-        cutoff = datetime.now(timezone.utc)
+        cutoff = datetime.now(UTC)
         time.sleep(0.02)
         e2 = hb.edge(["c", "d"], type="link")
         results = hb.edges(since=cutoff)
@@ -150,7 +152,7 @@ class TestTemporalQueries:
         hb = Hypabase()
         e1 = hb.edge(["a", "b"], type="link")
         time.sleep(0.02)
-        cutoff = datetime.now(timezone.utc)
+        cutoff = datetime.now(UTC)
         time.sleep(0.02)
         hb.edge(["c", "d"], type="link")
         results = hb.edges(before=cutoff)
@@ -159,27 +161,27 @@ class TestTemporalQueries:
 
     def test_at_point_in_time(self):
         hb = Hypabase()
-        past = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        past = datetime(2025, 1, 1, tzinfo=UTC)
 
         e = hb.edge(["a", "b"], type="link", valid_at=past)
         # Expire it now (sets expired_at to current time ~2026-02-19)
         hb.expire_edge(e.id)
 
         # Query at a point between valid_at and expired_at (before expiration)
-        query_time = datetime(2025, 6, 1, tzinfo=timezone.utc)
+        query_time = datetime(2025, 6, 1, tzinfo=UTC)
         results = hb.edges(at=query_time)
         assert len(results) == 1
 
         # Query at a point after expiration — not visible
-        future_query = datetime(2027, 1, 1, tzinfo=timezone.utc)
+        future_query = datetime(2027, 1, 1, tzinfo=UTC)
         results = hb.edges(at=future_query)
         assert len(results) == 0
 
     def test_at_before_valid_at(self):
         hb = Hypabase()
-        valid = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        valid = datetime(2026, 6, 1, tzinfo=UTC)
         hb.edge(["a", "b"], type="link", valid_at=valid)
-        results = hb.edges(at=datetime(2026, 1, 1, tzinfo=timezone.utc))
+        results = hb.edges(at=datetime(2026, 1, 1, tzinfo=UTC))
         assert len(results) == 0
 
     def test_combined_temporal_and_type_filter(self):
@@ -208,7 +210,7 @@ class TestTemporalPersistence:
         hb2.close()
 
     def test_valid_at_survives_save_cycle(self, tmp_db_path):
-        valid = datetime(2026, 2, 18, tzinfo=timezone.utc)
+        valid = datetime(2026, 2, 18, tzinfo=UTC)
         hb = Hypabase(tmp_db_path)
         hb.edge(["alice", "bob"], type="meeting", valid_at=valid)
         hb.close()
@@ -309,8 +311,7 @@ class TestV4ToV5Migration:
             ("bob", "default", "person", "{}"),
         )
         conn.execute(
-            "INSERT INTO edges (id, namespace, type, source, confidence, properties)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO edges (id, namespace, type, source, confidence, properties) VALUES (?, ?, ?, ?, ?, ?)",
             ("e1", "default", "knows", "manual", 0.9, "{}"),
         )
         conn.execute(
@@ -351,9 +352,7 @@ class TestV4ToV5Migration:
 
         # Schema version is now 5
         conn = sqlite3.connect(tmp_db_path)
-        version = conn.execute(
-            "SELECT value FROM meta WHERE key = 'schema_version'"
-        ).fetchone()[0]
+        version = conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0]
         conn.close()
         assert version == "5"
 
@@ -382,10 +381,13 @@ class TestCoreTemporalOps:
         store = HypergraphCore()
         store.add_node(Node("a", "t"))
         store.add_node(Node("b", "t"))
-        store.add_edge(Hyperedge(
-            id="e1", type="link",
-            incidences=[Incidence(node_id="a"), Incidence(node_id="b")],
-        ))
+        store.add_edge(
+            Hyperedge(
+                id="e1",
+                type="link",
+                incidences=[Incidence(node_id="a"), Incidence(node_id="b")],
+            )
+        )
         assert store.expire_edge("e1") is True
         e = store.get_edge("e1")
         assert e is not None
@@ -399,10 +401,13 @@ class TestCoreTemporalOps:
         store = HypergraphCore()
         store.add_node(Node("a", "t"))
         store.add_node(Node("b", "t"))
-        store.add_edge(Hyperedge(
-            id="e1", type="link",
-            incidences=[Incidence(node_id="a"), Incidence(node_id="b")],
-        ))
+        store.add_edge(
+            Hyperedge(
+                id="e1",
+                type="link",
+                incidences=[Incidence(node_id="a"), Incidence(node_id="b")],
+            )
+        )
         result = store.supersede_edge(
             "e1",
             type="link_v2",
@@ -419,11 +424,13 @@ class TestCoreTemporalOps:
         store.add_node(Node("a", "t"))
         store.add_node(Node("b", "t"))
         e1 = Hyperedge(
-            id="e1", type="link",
+            id="e1",
+            type="link",
             incidences=[Incidence(node_id="a"), Incidence(node_id="b")],
         )
         e2 = Hyperedge(
-            id="e2", type="link",
+            id="e2",
+            type="link",
             incidences=[Incidence(node_id="a"), Incidence(node_id="b")],
             expired_at=time.time(),
         )
@@ -434,11 +441,13 @@ class TestCoreTemporalOps:
     def test_filter_temporal_include_expired(self):
         store = HypergraphCore()
         e1 = Hyperedge(
-            id="e1", type="link",
+            id="e1",
+            type="link",
             incidences=[Incidence(node_id="a"), Incidence(node_id="b")],
         )
         e2 = Hyperedge(
-            id="e2", type="link",
+            id="e2",
+            type="link",
             incidences=[Incidence(node_id="a"), Incidence(node_id="b")],
             expired_at=time.time(),
         )
