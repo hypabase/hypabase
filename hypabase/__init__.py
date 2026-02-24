@@ -14,3 +14,14 @@ __all__ = [
     "ValidationResult",
     "__version__",
 ]
+
+
+def __getattr__(name: str):
+    """Lazy import for optional modules."""
+    if name == "Memory":
+        from hypabase.memory import Memory
+        return Memory
+    if name == "MemoryAgent":
+        from hypabase.memory import MemoryAgent
+        return MemoryAgent
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

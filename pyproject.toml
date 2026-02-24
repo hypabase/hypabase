@@ -32,11 +32,13 @@ classifiers = [
 ]
 dependencies = [
     "pydantic>=2.0",
+    "sqlite-vec>=0.1.1",
+    "fastembed>=0.7",
+    "mcp>=1.0",
+    "click>=8.0",
 ]
 
 [project.optional-dependencies]
-cli = ["click>=8.0"]
-mcp = ["mcp>=1.0", "click>=8.0"]
 docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.24",
@@ -52,7 +54,7 @@ dev = [
 
 [project.scripts]
 hypabase = "hypabase.cli.main:cli"
-hypabase-mcp = "hypabase.mcp:run_server"
+hypabase-memory = "hypabase.memory.server:run"
 
 [project.urls]
 Homepage = "https://hypabase.app"

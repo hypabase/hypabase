@@ -22,6 +22,7 @@ References:
 """
 
 import threading
+import time
 import uuid
 from collections import defaultdict, deque
 from collections.abc import Callable, Generator
@@ -38,6 +39,8 @@ class Node:
         id: Unique identifier for the node
         type: Extensible type string (e.g., "table", "column", "concept")
         properties: Arbitrary key-value metadata
+        created_at: Unix timestamp when the node was created (None = not yet timestamped)
+        updated_at: Unix timestamp when the node was last updated (None = not yet timestamped)
 
     Raises:
         TypeError: If id or type is not a string
@@ -46,6 +49,8 @@ class Node:
     id: str
     type: str
     properties: dict[str, Any] = field(default_factory=dict)
+    created_at: float | None = None
+    updated_at: float | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.id, str):
@@ -131,6 +136,9 @@ class Hyperedge:
     properties: dict[str, Any] = field(default_factory=dict)
     source: str = "unknown"
     confidence: float = 1.0
+    created_at: float | None = None
+    valid_at: float | None = None
+    expired_at: float | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.id, str):
@@ -141,6 +149,8 @@ class Hyperedge:
             raise ValueError(
                 f"Hyperedge confidence must be between 0.0 and 1.0, got: {self.confidence}"
             )
+        if self.valid_at is not None and self.expired_at is not None and self.expired_at < self.valid_at:
+            raise ValueError(f"expired_at ({self.expired_at}) cannot be before valid_at ({self.valid_at})")
 
     @property
     def nodes(self) -> list[str]:
@@ -202,7 +212,7 @@ class HypergraphCore:
         self._node_to_edges: dict[str, set[str]] = defaultdict(set)
         self._nodes_by_type: dict[str, set[str]] = defaultdict(set)
         self._edges_by_type: dict[str, set[str]] = defaultdict(set)
-        # Vertex-set index for O(1) Cog-RAG style lookup
+        # Vertex-set index for O(1) exact-match lookup by node set
         # Maps frozenset of node IDs -> set of edge IDs (multiple edges can share same node set)
         self._edges_by_node_set: dict[frozenset[str], set[str]] = defaultdict(set)
         # Metagraph index: maps referenced edge ID -> set of edge IDs that reference it
@@ -372,7 +382,7 @@ class HypergraphCore:
     def has_node(self, node_id: str) -> bool:
         """Check if a node exists in the hypergraph.
 
-        O(1) lookup. Used in Cog-RAG merge operations.
+        O(1) lookup.
 
         Args:
             node_id: The node ID to check
@@ -535,6 +545,98 @@ class HypergraphCore:
         with self._lock:
             return list(self._edges.values())
 
+    # ========== Temporal Operations ==========
+
+    def expire_edge(self, edge_id: str, expired_at: float | None = None) -> bool:
+        """Set expired_at on an edge, marking it as no longer active.
+
+        Args:
+            edge_id: The edge to expire
+            expired_at: Unix timestamp for expiration. Defaults to current time.
+
+        Returns:
+            True if the edge was found and expired, False if not found.
+        """
+        with self._lock:
+            edge = self._edges.get(edge_id)
+            if edge is None:
+                return False
+            edge.expired_at = expired_at if expired_at is not None else time.time()
+            return True
+
+    def supersede_edge(
+        self,
+        old_edge_id: str,
+        **new_edge_kwargs: Any,
+    ) -> tuple[Hyperedge, Hyperedge] | None:
+        """Expire an existing edge and create a replacement atomically.
+
+        Args:
+            old_edge_id: The edge to expire.
+            **new_edge_kwargs: Arguments for the new Hyperedge (id, type, incidences, etc.).
+                If 'id' is not provided, a UUID is generated.
+
+        Returns:
+            Tuple of (old_edge, new_edge) if successful, None if old_edge not found.
+        """
+        with self._lock:
+            old_edge = self._edges.get(old_edge_id)
+            if old_edge is None:
+                return None
+            now = time.time()
+            old_edge.expired_at = now
+            if "id" not in new_edge_kwargs:
+                new_edge_kwargs["id"] = str(uuid.uuid4())
+            if "created_at" not in new_edge_kwargs:
+                new_edge_kwargs["created_at"] = now
+            new_edge = Hyperedge(**new_edge_kwargs)
+            self.add_edge(new_edge)
+            return (old_edge, new_edge)
+
+    def filter_temporal(
+        self,
+        edges: list[Hyperedge],
+        *,
+        active: bool = True,
+        since: float | None = None,
+        before: float | None = None,
+        at: float | None = None,
+        include_expired: bool = False,
+    ) -> list[Hyperedge]:
+        """Filter edges by temporal criteria.
+
+        Args:
+            edges: List of edges to filter.
+            active: If True, only return edges where expired_at is None.
+            since: Only edges created_at >= since.
+            before: Only edges created_at < before.
+            at: Point-in-time query: valid_at <= at AND (expired_at is None OR expired_at > at).
+            include_expired: If True, include expired edges (overrides active).
+
+        Returns:
+            Filtered list of edges.
+        """
+        result = edges
+        if at is not None:
+            result = [
+                e for e in result
+                if (e.valid_at is None or e.valid_at <= at)
+                and (e.expired_at is None or e.expired_at > at)
+            ]
+        elif not include_expired and active:
+            result = [e for e in result if e.expired_at is None]
+        if since is not None:
+            result = [
+                e for e in result
+                if e.created_at is None or e.created_at >= since
+            ]
+        if before is not None:
+            result = [
+                e for e in result
+                if e.created_at is None or e.created_at < before
+            ]
+        return result
+
     # ========== Utility Methods ==========
 
     def get_neighbor_nodes(
@@ -579,7 +681,7 @@ class HypergraphCore:
     ) -> list[Hyperedge]:
         """Get all hyperedges containing a node.
 
-        Used for Cog-RAG diffusion: given a vertex, retrieve its incident edges.
+        Given a vertex, retrieve its incident edges.
 
         Args:
             node_id: The node to find edges for
@@ -610,7 +712,7 @@ class HypergraphCore:
         """Get vertex sets of all hyperedges containing a node.
 
         Returns frozensets of node IDs representing the vertex tuples
-        of incident edges. Used for Cog-RAG neighbor diffusion.
+        of incident edges.
 
         Example:
             If node "A" participates in edges {A,B,C} and {A,D}:
@@ -665,6 +767,25 @@ class HypergraphCore:
                     count += 1
             return count
 
+    def top_nodes_by_degree(self, k: int = 20) -> list[tuple[Node, int]]:
+        """Return the top-k nodes by edge count, most connected first.
+
+        Uses heapq.nlargest for O(N log k) performance.
+        """
+        import heapq
+
+        with self._lock:
+            top = heapq.nlargest(
+                k,
+                self._node_to_edges.items(),
+                key=lambda item: len(item[1]),
+            )
+            return [
+                (self._nodes[node_id], len(edge_ids))
+                for node_id, edge_ids in top
+                if node_id in self._nodes
+            ]
+
     def edge_cardinality(self, edge_id: str) -> int:
         """Get the number of unique nodes in a hyperedge (excludes edge-ref members).
 
@@ -687,7 +808,7 @@ class HypergraphCore:
     ) -> int:
         """Get the degree of a hyperedge (sum of vertex degrees).
 
-        Used for ranking edges by connectivity/importance in Cog-RAG retrieval.
+        Used for ranking edges by connectivity/importance.
         Higher degree = edge connects more well-connected nodes.
 
         Args:
@@ -710,8 +831,7 @@ class HypergraphCore:
     ) -> Hyperedge | None:
         """Get a hyperedge by its exact vertex set.
 
-        Uses O(1) lookup via the vertex-set index. This is useful for
-        Cog-RAG style operations where you need to find an edge
+        Uses O(1) lookup via the vertex-set index to find an edge
         connecting a specific set of nodes.
 
         Note: If multiple edges share the same vertex set, returns the first
@@ -914,8 +1034,8 @@ class HypergraphCore:
         (optionally merged using merge_fn). Otherwise, a new edge is created
         with an auto-generated UUID.
 
-        This is the Cog-RAG pattern where (vertex_set, type) uniquely identifies
-        an edge, enabling merge-on-collision semantics during extraction.
+        The (vertex_set, type) pair uniquely identifies an edge, enabling
+        merge-on-collision semantics during extraction.
 
         Args:
             node_ids: Set of node IDs forming the hyperedge
@@ -1199,6 +1319,8 @@ class HypergraphCore:
                         "id": n.id,
                         "type": n.type,
                         "properties": n.properties,
+                        "created_at": n.created_at,
+                        "updated_at": n.updated_at,
                     }
                     for n in self._nodes.values()
                 ],
@@ -1222,6 +1344,9 @@ class HypergraphCore:
                         "properties": e.properties,
                         "source": e.source,
                         "confidence": e.confidence,
+                        "created_at": e.created_at,
+                        "valid_at": e.valid_at,
+                        "expired_at": e.expired_at,
                     }
                     for e in self._edges.values()
                 ],
@@ -1237,6 +1362,8 @@ class HypergraphCore:
                     id=node_data["id"],
                     type=node_data["type"],
                     properties=node_data.get("properties", {}),
+                    created_at=node_data.get("created_at"),
+                    updated_at=node_data.get("updated_at"),
                 )
             )
         for edge_data in data.get("edges", []):
@@ -1256,6 +1383,9 @@ class HypergraphCore:
                     properties=edge_data.get("properties", {}),
                     source=edge_data.get("source", "unknown"),
                     confidence=edge_data.get("confidence", 1.0),
+                    created_at=edge_data.get("created_at"),
+                    valid_at=edge_data.get("valid_at"),
+                    expired_at=edge_data.get("expired_at"),
                 )
             )
         return store
@@ -1309,6 +1439,12 @@ class HypergraphCore:
                     edge_attrs["_source"] = edge.source
                 if edge.confidence != 1.0:
                     edge_attrs["_confidence"] = edge.confidence
+                if edge.created_at is not None:
+                    edge_attrs["_created_at"] = edge.created_at
+                if edge.valid_at is not None:
+                    edge_attrs["_valid_at"] = edge.valid_at
+                if edge.expired_at is not None:
+                    edge_attrs["_expired_at"] = edge.expired_at
                 edge_attrs.update(edge.properties)
                 hif_edge["attrs"] = edge_attrs
                 hif_edges.append(hif_edge)
@@ -1373,6 +1509,9 @@ class HypergraphCore:
                 "type": attrs.pop("_type", "unknown"),
                 "source": attrs.pop("_source", "unknown"),
                 "confidence": attrs.pop("_confidence", 1.0),
+                "created_at": attrs.pop("_created_at", None),
+                "valid_at": attrs.pop("_valid_at", None),
+                "expired_at": attrs.pop("_expired_at", None),
                 "properties": attrs,
                 "incidences": [],
             }
@@ -1430,6 +1569,9 @@ class HypergraphCore:
                     properties=edata["properties"],
                     source=edata["source"],
                     confidence=edata["confidence"],
+                    created_at=edata.get("created_at"),
+                    valid_at=edata.get("valid_at"),
+                    expired_at=edata.get("expired_at"),
                 )
             )
 

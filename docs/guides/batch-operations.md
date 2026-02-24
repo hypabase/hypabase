@@ -13,7 +13,10 @@ with hb.batch():
 ```
 
 !!! note
-    `batch()` provides batched persistence, not transaction rollback. If an exception occurs mid-batch, partial in-memory changes remain and persist when the batch exits.
+    `batch()` wraps a SQLite transaction. If an exception occurs mid-batch, the
+    transaction is rolled back and in-memory state is reloaded from disk. For
+    in-memory-only instances (no path), partial changes remain since there is
+    no durable state to restore from.
 
 ### Nested batches
 

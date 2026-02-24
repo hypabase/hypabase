@@ -1,0 +1,38 @@
+{
+  "name": "hypabase-memory",
+  "version": "0.2.0",
+  "description": "Structured memory for AI agents — understands WHO did WHAT to WHOM using semantic roles (kāraka), with provenance, temporal support, and semantic search.",
+  "author": "Hypabase",
+  "license": "Apache-2.0",
+  "homepage": "https://hypabase.app",
+  "repository": "https://github.com/hypabase/hypabase",
+  "keywords": [
+    "memory",
+    "knowledge-graph",
+    "hypergraph",
+    "ai-agent",
+    "provenance",
+    "semantic-search",
+    "karaka",
+    "semantic-roles"
+  ],
+  "mcp": {
+    "command": "hypabase-memory",
+    "env": {
+      "HYPABASE_DB_PATH": "hypabase.db"
+    }
+  },
+  "tools": [
+    "remember",
+    "recall",
+    "forget",
+    "consolidate",
+    "connections",
+    "who_knows_what",
+    "resolve_contradiction"
+  ],
+  "dependencies": {
+    "python": ">=3.10",
+    "packages": ["hypabase"]
+  }
+}

@@ -90,9 +90,14 @@ def edge(
 @click.option("--containing", multiple=True, help="Filter by node IDs.")
 @click.option("--type", "edge_type", default=None, help="Filter by edge type.")
 @click.option("--match-all", is_flag=True, help="Require all containing nodes.")
+@click.option("--active/--include-expired", default=True, help="Show active or include expired edges.")
 @click.pass_context
 def query(
-    ctx: click.Context, containing: tuple[str, ...], edge_type: str | None, match_all: bool
+    ctx: click.Context,
+    containing: tuple[str, ...],
+    edge_type: str | None,
+    match_all: bool,
+    active: bool,
 ) -> None:
     """Query edges in the hypergraph."""
     hb = _get_client(ctx.obj["db"], ctx.obj["database"])
@@ -100,16 +105,33 @@ def query(
         containing=list(containing) if containing else None,
         type=edge_type,
         match_all=match_all,
+        active=active,
+        include_expired=not active,
     )
     hb.close()
     if not results:
         click.echo("No edges found.")
         return
     for e in results:
+        expired_str = f"  expired={e.expired_at}" if e.expired_at else ""
         click.echo(
             f"  {e.id}  type={e.type}  nodes={e.node_ids}"
-            f"  source={e.source}  confidence={e.confidence}"
+            f"  source={e.source}  confidence={e.confidence}{expired_str}"
         )
+
+
+@cli.command()
+@click.argument("edge_id")
+@click.pass_context
+def expire(ctx: click.Context, edge_id: str) -> None:
+    """Expire an edge (soft delete)."""
+    hb = _get_client(ctx.obj["db"], ctx.obj["database"])
+    result = hb.expire_edge(edge_id)
+    hb.close()
+    if result is None:
+        click.echo(f"Edge {edge_id} not found.")
+    else:
+        click.echo(f"Expired edge {edge_id}")
 
 
 @cli.command()
@@ -189,14 +211,14 @@ def import_hif(ctx: click.Context, input_file: str) -> None:
 @cli.command()
 @click.option("--db", default=None, help="Database path (overrides HYPABASE_DB_PATH).")
 def mcp(db: str | None) -> None:
-    """Start the MCP server for AI agent integration."""
+    """Start the Memory MCP server for AI agent integration."""
     import os
 
     if db:
         os.environ["HYPABASE_DB_PATH"] = db
-    from hypabase.mcp.server import run_server
+    from hypabase.memory.server import run
 
-    run_server()
+    run()
 
 
 if __name__ == "__main__":

@@ -642,12 +642,19 @@ class TestAutoPersist:
                 hb.node("alice", type="person")
                 raise RuntimeError("boom")
 
-        # Partial changes from the failed batch are persisted (no rollback)
+        # Rolled back: "alice" should NOT be on disk
         reader = SQLiteStorage(tmp_db_path)
         store = reader.load_namespace("default")
         assert store.get_node("pre_existing") is not None
-        assert store.get_node("alice") is not None
+        assert store.get_node("alice") is None
         reader.close()
+
+        # In-memory state reloaded: "alice" should NOT be in memory either
+        assert hb.get_node("alice") is None
+        assert hb.get_node("pre_existing") is not None
+
+        # Storage transaction depth is back to 0
+        assert hb._storage._tx_depth == 0
 
         # Subsequent operations still auto-persist (depth is back to 0)
         hb.node("bob", type="person")
@@ -670,6 +677,111 @@ class TestAutoPersist:
         hb.upsert_edge_by_vertex_set({"x", "y"}, "link")
         hb.delete_node_cascade("carol")
         # All operations succeed — _auto_save is a no-op for in-memory
+
+
+class TestBatch:
+    def test_batch_commit_failure_rolls_back_storage(self, tmp_db_path):
+        """If commit() fails during batch exit, storage and memory are rolled back."""
+        hb = Hypabase(tmp_db_path)
+        hb.node("pre_existing", type="person")
+
+        # Make commit() raise to simulate a failure
+        original_commit = hb._storage.commit
+        call_count = 0
+
+        def failing_commit():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise sqlite3.OperationalError("disk full")
+            return original_commit()
+
+        with pytest.raises(sqlite3.OperationalError, match="disk full"):
+            with hb.batch():
+                hb._storage.commit = failing_commit
+                hb.node("alice", type="person")
+
+        # After the failure, tx_depth should be reset to 0 (rollback called)
+        assert hb._storage._tx_depth == 0
+
+        # In-memory state reloaded: "alice" gone, "pre_existing" remains
+        assert hb.get_node("alice") is None
+        assert hb.get_node("pre_existing") is not None
+
+        # Disk state also consistent
+        reader = SQLiteStorage(tmp_db_path)
+        store = reader.load_namespace("default")
+        assert store.get_node("alice") is None
+        assert store.get_node("pre_existing") is not None
+        reader.close()
+
+        # Subsequent operations should still work
+        hb._storage.commit = original_commit
+        hb.node("bob", type="person")
+        reader = SQLiteStorage(tmp_db_path)
+        store = reader.load_namespace("default")
+        assert store.get_node("bob") is not None
+        reader.close()
+        hb.close()
+
+    def test_batch_exception_reloads_from_storage(self, tmp_db_path):
+        """On exception, SQLite rolls back and in-memory state is reloaded."""
+        hb = Hypabase(tmp_db_path)
+
+        with pytest.raises(RuntimeError, match="mid-batch"):
+            with hb.batch():
+                hb.node("alice", type="person")
+                hb.edge(["alice", "bob"], type="knows")
+                raise RuntimeError("mid-batch")
+
+        # In-memory: partial changes are gone (reloaded from rolled-back disk)
+        assert hb.get_node("alice") is None
+        assert hb.get_node("bob") is None
+        assert len(hb.edges()) == 0
+        hb.close()
+
+    def test_nested_batch_inner_failure_rolls_back_all(self, tmp_db_path):
+        """Inner batch raises -> entire transaction rolled back, both inner and outer writes gone."""
+        hb = Hypabase(tmp_db_path)
+
+        with pytest.raises(RuntimeError, match="inner boom"):
+            with hb.batch():
+                hb.node("outer_node", type="person")
+                with hb.batch():
+                    hb.node("inner_node", type="person")
+                    raise RuntimeError("inner boom")
+
+        # Both inner and outer writes should be rolled back from disk
+        reader = SQLiteStorage(tmp_db_path)
+        store = reader.load_namespace("default")
+        assert store.get_node("outer_node") is None
+        assert store.get_node("inner_node") is None
+        reader.close()
+
+        # In-memory state also reloaded — both gone
+        assert hb.get_node("outer_node") is None
+        assert hb.get_node("inner_node") is None
+
+        # Subsequent operations still work
+        assert hb._storage._tx_depth == 0
+        hb.node("after", type="person")
+        assert hb.get_node("after") is not None
+        hb.close()
+
+    def test_batch_exception_in_memory_only(self):
+        """In-memory-only mode: partial changes remain (no storage to reload from)."""
+        hb = Hypabase()
+
+        with pytest.raises(RuntimeError, match="boom"):
+            with hb.batch():
+                hb.node("alice", type="person")
+                hb.edge(["alice", "bob"], type="knows")
+                raise RuntimeError("boom")
+
+        # No storage -> partial changes remain in memory
+        assert hb.get_node("alice") is not None
+        assert hb.get_node("bob") is not None
+        assert len(hb.edges()) == 1
 
 
 class TestConstructor:
@@ -927,7 +1039,7 @@ class TestSchemaMigration:
         conn.close()
 
     def test_schema_v3_to_v4_migration(self, tmp_db_path):
-        """v3 database is migrated to v4, preserving all data."""
+        """v3 database is migrated to v5 (via v4), preserving all data."""
         self._create_v3_database(tmp_db_path)
 
         storage = SQLiteStorage(tmp_db_path)
@@ -944,13 +1056,13 @@ class TestSchemaMigration:
         assert e1.confidence == 0.9
         assert len(e1.incidences) == 2
 
-        # Verify version is now 4
+        # Verify version is now 5 (v3→v4→v5 chain)
         conn = sqlite3.connect(tmp_db_path)
         version = conn.execute(
             "SELECT value FROM meta WHERE key = 'schema_version'"
         ).fetchone()[0]
         conn.close()
-        assert version == "4"
+        assert version == "5"
 
     def test_schema_v3_migration_rejects_null_node_id(self, tmp_db_path):
         """v3 database with NULL node_id raises ValueError during migration."""

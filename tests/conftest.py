@@ -1,8 +1,36 @@
 """Shared fixtures for Hypabase tests."""
 
+import math
+
 import pytest
 
 from hypabase import Hypabase
+from hypabase.engine.embeddings import EmbeddingProvider
+
+
+class MockEmbedder(EmbeddingProvider):
+    """Deterministic embedder for testing: hashes the text into a 4-dim vector."""
+
+    def embed(self, text: str) -> list[float]:
+        h = hash(text) & 0xFFFFFFFF
+        raw = [
+            ((h >> 0) & 0xFF) / 255.0,
+            ((h >> 8) & 0xFF) / 255.0,
+            ((h >> 16) & 0xFF) / 255.0,
+            ((h >> 24) & 0xFF) / 255.0,
+        ]
+        mag = math.sqrt(sum(x * x for x in raw)) or 1.0
+        return [x / mag for x in raw]
+
+    @property
+    def dimension(self) -> int:
+        return 4
+
+
+@pytest.fixture()
+def mock_embedder():
+    """A MockEmbedder instance for tests."""
+    return MockEmbedder()
 
 
 @pytest.fixture()
