@@ -4,22 +4,14 @@ from __future__ import annotations
 
 import math
 import time
-from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from tests.conftest import MockEmbedder
 from hypabase import Hypabase
 from hypabase.memory.agent import Memory
 from hypabase.memory.resolution import EntityResolver
 from hypabase.memory.strength import memory_strength
-from hypabase.memory.types import (
-    DEFAULT_DECAY_RATE,
-    KARAKA_ROLES,
-    MEMORY_DECAY_RATES,
-    MEMORY_TYPES,
-)
-
+from tests.conftest import MockEmbedder
 
 # ==================================================================
 # TestKarakaRoles
@@ -520,7 +512,7 @@ class TestContradictionDetection:
 
     def test_supersede_resolution(self, tmp_db_path):
         mem = Memory(path=tmp_db_path)
-        r1 = mem.remember(
+        mem.remember(
             action="prefers",
             entities=[
                 {"name": "Alice", "type": "person", "role": "agent"},
@@ -638,7 +630,7 @@ class TestBackwardCompatibility:
                 {"name": "Bob Jones", "type": "person", "role": "object"},
             ],
         )
-        edge_id = r1["edge_id"]
+        r1["edge_id"]
         mem1.hb.close()
 
         # Read
@@ -805,7 +797,7 @@ class TestConsolidate:
 class TestResolveContradictionKeepOld:
     def test_keep_old_expires_new_edge(self, tmp_db_path):
         mem = Memory(path=tmp_db_path)
-        r1 = mem.remember(
+        mem.remember(
             action="prefers",
             entities=[
                 {"name": "Alice", "type": "person", "role": "agent"},
@@ -838,7 +830,7 @@ class TestResolveContradictionKeepOld:
 
     def test_invalid_resolution_raises(self, tmp_db_path):
         mem = Memory(path=tmp_db_path)
-        r1 = mem.remember(
+        mem.remember(
             action="prefers",
             entities=[
                 {"name": "Alice", "type": "person", "role": "agent"},

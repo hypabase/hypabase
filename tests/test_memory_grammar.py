@@ -6,13 +6,11 @@ import time
 
 import pytest
 
-from tests.conftest import MockEmbedder
 from hypabase import Hypabase
 from hypabase.memory.agent import Memory
 from hypabase.memory.resolution import EntityResolver
 from hypabase.memory.strength import memory_strength
-from hypabase.memory.types import MOODS, DEFAULT_MOOD, Mood
-
+from hypabase.memory.types import DEFAULT_MOOD, MOODS
 
 # ==================================================================
 # TestMoodType

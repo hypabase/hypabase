@@ -9,9 +9,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
-from tests.conftest import MockEmbedder
 from hypabase.memory.agent import Memory
 
 

@@ -8,10 +8,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from tests.conftest import MockEmbedder
-from hypabase import Hypabase
 from hypabase.memory.agent import Memory
 from hypabase.memory.strength import memory_strength
+from tests.conftest import MockEmbedder
 
 
 class TestStrength:

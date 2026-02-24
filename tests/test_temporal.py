@@ -2,9 +2,7 @@
 
 import sqlite3
 import time
-from datetime import datetime, timedelta, timezone
-
-import pytest
+from datetime import datetime, timezone
 
 from hypabase import Hypabase
 from hypabase.engine.core import Hyperedge, HypergraphCore, Incidence, Node
@@ -139,7 +137,7 @@ class TestSupersedeEdge:
 class TestTemporalQueries:
     def test_since_filter(self):
         hb = Hypabase()
-        e1 = hb.edge(["a", "b"], type="link")
+        hb.edge(["a", "b"], type="link")
         time.sleep(0.02)
         cutoff = datetime.now(timezone.utc)
         time.sleep(0.02)
@@ -154,7 +152,7 @@ class TestTemporalQueries:
         time.sleep(0.02)
         cutoff = datetime.now(timezone.utc)
         time.sleep(0.02)
-        e2 = hb.edge(["c", "d"], type="link")
+        hb.edge(["c", "d"], type="link")
         results = hb.edges(before=cutoff)
         assert len(results) == 1
         assert results[0].id == e1.id
@@ -451,7 +449,7 @@ class TestCoreTemporalOps:
 class TestTemporalEdgeCases:
     def test_since_filter_preserves_null_created_at(self):
         """Edges with created_at=None survive since and before filters."""
-        from hypabase.engine.core import Hyperedge, Incidence, HypergraphCore
+        from hypabase.engine.core import Hyperedge, HypergraphCore, Incidence
 
         store = HypergraphCore()
         store.add_node(Node("a", "t"))

@@ -7,7 +7,7 @@ detection, and optional embedding similarity.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from hypabase.engine.embeddings import EmbeddingProvider
 

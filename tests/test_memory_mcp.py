@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import os
-from unittest.mock import patch
-
 import pytest
-
-from tests.conftest import MockEmbedder
 
 import hypabase.memory.server as srv
 from hypabase import Hypabase
 from hypabase.memory import Memory
+from tests.conftest import MockEmbedder
 
 
 @pytest.fixture()
@@ -247,7 +243,7 @@ class TestMemoryToolsIntegration:
 
     def test_resolve_contradiction_tool(self, memory_client):
         """resolve_contradiction tool works through MCP."""
-        r1 = srv.remember(
+        srv.remember(
             action="prefers",
             entities=[
                 {"name": "Alice", "type": "person", "role": "agent"},

@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import MockEmbedder
 from hypabase import Hypabase
 from hypabase.engine.vector import cosine_similarity, pack_embedding, unpack_embedding
+from tests.conftest import MockEmbedder
 
 
 class TestCosineSimilarity:
@@ -54,7 +54,6 @@ class TestPackUnpack:
 
     def test_already_normalized_idempotent(self):
         """Packing an already-normalized vector should be idempotent."""
-        import math
 
         vec = [0.6, 0.8, 0.0]
         blob = pack_embedding(vec)

@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import heapq
 import logging
-import time
 from collections import Counter, deque
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from hypabase.client import Hypabase
@@ -20,7 +19,6 @@ from hypabase.memory.resolution import EntityResolver
 from hypabase.memory.strength import memory_strength
 from hypabase.memory.types import (
     DEFAULT_ROLE_WEIGHT,
-    KARAKA_ROLES,
     MEMORY_TYPES,
     MOODS,
     ROLE_WEIGHTS,

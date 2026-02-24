@@ -6,7 +6,6 @@ Abstract base class and implementations for text embedding generation.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
 
 
 class EmbeddingProvider(ABC):

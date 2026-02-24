@@ -9,7 +9,6 @@ from __future__ import annotations
 import math
 import struct
 
-
 # --- Utilities (used in tests and available for custom search logic) ---
 
 
