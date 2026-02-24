@@ -10,12 +10,24 @@ Each phase is additive. Later phases don't rewrite earlier ones — they add new
 
 ```
 Python (hypabase)
-├── client.py         Hypabase class — public API
+├── client.py                Hypabase class — public API
+├── models.py                Pydantic models (Node, Edge, HypergraphStats)
 ├── engine/
-│   ├── core.py       HypergraphCore — in-memory indexes (6 Python dicts)
-│   └── storage.py    SQLiteStorage — persistence layer
-└── memory/
-    └── agent.py      Memory module — remember/recall/forget
+│   ├── core.py              HypergraphCore — in-memory indexes (7 Python dicts)
+│   ├── storage.py           SQLiteStorage — all SQL, schema, and queries
+│   ├── embeddings.py        EmbeddingProvider ABC + OpenAI/SentenceTransformer impls
+│   ├── vector.py            Pure-Python vector math (cosine similarity, pack/unpack)
+│   └── persistence_engine.py  PersistenceEngine abstract interface
+├── memory/
+│   ├── agent.py             Memory — remember/recall/forget/consolidate/connections
+│   ├── extraction.py        Regex-based entity extraction
+│   ├── resolution.py        EntityResolver — normalization, alias, embedding match
+│   ├── strength.py          Memory strength scoring (recency, frequency, salience)
+│   └── types.py             Literal types: KarakaRole, MemoryType, RecallStrategy
+├── cli/
+│   └── main.py              Click CLI commands (init, node, edge, query, stats)
+└── mcp/
+    └── server.py            MCP server (FastMCP, stdio transport)
 ```
 
 **How it works today:** On startup, the entire graph loads from SQLite into Python dicts. Reads are dict lookups. Writes mutate dicts and mirror to SQLite. The graph lives in RAM; SQLite is a persistence side effect.
@@ -28,15 +40,16 @@ Python (hypabase)
 | Memories | ~100 | ~1K |
 | Recall latency | <2s at 100 memories | Degrades linearly |
 | Writes/sec | 1–5K | SQLite single-writer limit |
-| Memory footprint | O(graph size) | ~200 bytes/node, ~500 bytes/edge in Python |
+| Memory footprint | O(graph size) | ~200 bytes/node, ~500 bytes/edge (estimated, not benchmarked) |
 
 **What limits scale:**
 
 1. **Memory-first design.** The entire graph must fit in RAM as Python objects.
-2. **Python object overhead.** Each node/edge is a dataclass + dict + GC header. 4–5× larger than the raw data.
+2. **Python object overhead.** The core engine (`core.py`) uses `@dataclass` internally; the public API (`models.py`) uses Pydantic `BaseModel`. Both carry `dict[str, Any]` properties and GC headers. Pydantic models are 4–5× larger than raw data; core dataclasses roughly 2–3×.
 3. **Global RLock.** All operations (reads and writes) serialize through one lock.
 4. **Per-write SQLite commits.** Each `write_node`/`write_edge` auto-commits outside a `batch()` context.
-5. **Spreading activation BFS.** Visits all reachable nodes up to depth — O(V×E) worst case.
+5. **Spreading activation BFS.** Uses a `visited_nodes` set and `min_activation` threshold to prune, bounded by a `depth` limit (default 2). Worst case is O(V+E) within the depth bound. The concern is not algorithmic complexity but the per-visit constant: each node triggers a Python-level `edges_of_node()` call returning full model objects.
+6. **Embedding dimension lock.** `SQLiteStorage` locks the embedding vector dimension on first use. All embeddings must share the same dimension. Switching embedding models (e.g., 384-dim to 1536-dim) requires deleting all existing embeddings and rebuilding.
 
 ---
 
@@ -52,19 +65,21 @@ Replace the single `RLock` with a read-write lock. Recalls are pure reads — th
 
 ### 0b. Push filters to SQL in recall
 
-The filter-only recall path (no entity provided) loads all active edges into Python, then filters in a loop. Every filter dimension (action, memory_type, mood, since, before) already has a SQL index. Push them down.
+The filter-only recall path (no entity provided) calls `hb.edges(active=True)`, which reads all edges from the in-memory `HypergraphCore` dicts and filters with `filter_temporal()` in a Python loop. The optimization: for filter-only recall, bypass the in-memory engine and route directly to `SQLiteStorage` SQL queries. Some filter dimensions have SQL indexes (`edges.type` for action, `expired_at`/`valid_at`/`created_at` for temporal filters) and can be pushed to WHERE clauses. However, `memory_type` and `mood` are stored in the `properties` JSON column and have no SQL index — these require `json_extract()` calls or generated columns.
 
-**Impact:** Filter-only recall goes from O(E) Python objects to O(matching) SQL rows. 10–200× fewer objects at scale.
+**Impact:** Routing filter-only recall to SQL takes it from O(E) Python objects to O(matching) SQL rows. JSON property filters can still be applied in SQL via `json_extract()`, avoiding the Python object overhead even without an index.
 
 ### 0c. Budget-bounded spreading activation
 
-Replace BFS deque (explores everything up to depth) with a max-heap and activation budget. Best-first search — highest-activation paths explored first, weak paths pruned by budget exhaustion.
+The current BFS already prunes via `min_activation` threshold and a `visited_nodes` set, bounding traversal to O(V+E) within the depth limit. The proposal: replace the FIFO deque with a max-heap priority queue and an explicit node-visit budget. Best-first search explores highest-activation paths first; the budget cap guarantees a fixed upper bound on work regardless of graph density.
 
-**Impact:** Recall becomes O(budget) instead of O(graph). Constant-time regardless of graph size. The single highest-ROI change for the memory module.
+**Impact:** Recall becomes O(budget) instead of O(reachable subgraph within depth). The budget makes latency predictable under worst-case topologies (e.g., dense hub nodes). The single highest-ROI change for the memory module.
 
 ### 0d. Write coalescing
 
-Wrap multi-write operations (like `remember()`, which creates nodes + edges + same_as links) in implicit `batch()` transactions. Eliminates per-operation SQLite commits.
+Wrap multi-write operations (like `remember()`, which creates nodes + edges + same_as links) in `hb.batch()`. Note: `batch()` operates at two levels. On the core engine (`engine/core.py`), `batch()` holds the `RLock` for isolation — it is not a SQLite transaction. On the client (`client.py`), `hb.batch()` does both: holds the core lock AND wraps storage writes in a `begin()`/`commit()` transaction with rollback on failure. Only the client-level `hb.batch()` eliminates per-operation SQLite commits.
+
+Currently `remember()` makes N+2 separate auto-committed writes (N entity nodes + 1 edge + 1 embedding). Wrapping in `hb.batch()` coalesces these into a single commit.
 
 **Impact:** `remember()` latency drops 4–8× (one commit instead of 4–8).
 
@@ -74,6 +89,15 @@ Maintain a co-occurrence counter as a side effect of `remember()` instead of com
 
 **Impact:** `consolidate()` scales to 100K+ memories.
 
+### 0f. Entity resolution cache scaling
+
+`EntityResolver.warm_cache()` loads all nodes linearly and builds a name-to-ID lookup dict. At scale, this has two costs:
+
+1. **Startup cost:** `warm_cache()` calls `hb.nodes()` to iterate all nodes — O(N) on every `Memory` initialization.
+2. **Per-resolve embedding search:** When the cache misses and an embedder is available, `resolve()` performs a vector similarity search per entity. With many unique entities, this becomes a bottleneck during `remember()`.
+
+**Mitigation:** Lazy cache population (resolve on demand, not at startup) and batched embedding lookups for multi-entity `remember()` calls.
+
 ### Envelope after Phase 0
 
 | Dimension | Before | After |
@@ -82,6 +106,8 @@ Maintain a co-occurrence counter as a side effect of `remember()` instead of com
 | Recall latency (10K memories) | Seconds | <50ms |
 | Concurrent reads | 1 (serialized) | N (parallel) |
 | `remember()` latency | ~10–20ms | ~2–5ms |
+
+*Envelope figures are projections based on overhead analysis, not measured benchmarks.*
 
 ---
 
@@ -101,7 +127,7 @@ Maintain a co-occurrence counter as a side effect of `remember()` instead of com
 ```
 hypabase-core (Rust crate, exposed via PyO3)
 ├── model.rs           Node, Hyperedge, Incidence structs
-├── graph.rs           6 index HashMaps, traversal, vertex-set lookup
+├── graph.rs           7 index HashMaps, traversal, vertex-set lookup
 ├── activation.rs      BFS, N-ary overlap, role-weighted propagation
 └── python/lib.rs      PyO3 bindings — same method signatures
 ```
@@ -136,6 +162,15 @@ from hypabase_core import HypergraphCore  # Rust, same API
 
 All existing tests pass against the Rust core because the API surface is identical.
 
+### Serialization boundary
+
+The import swap is the goal, but the Python↔Rust boundary has friction points:
+
+- **Two model layers.** The core engine uses `@dataclass` types (`engine/core.py`). The public API uses Pydantic `BaseModel` (`models.py`). The Rust port replaces the dataclass layer; Pydantic models stay in Python. `client.py` already converts between them (`_core_node_to_model`, `_core_edge_to_model`).
+- **`dict[str, Any]` properties.** Node and edge properties are arbitrary Python dicts. PyO3 converts these to/from `serde_json::Value`, but nested Python objects (e.g., `datetime`, custom types) require explicit handling or will fail at the boundary.
+- **`frozenset` keys.** The vertex-set index uses `frozenset[str]` as dict keys. Rust has no direct equivalent; use `BTreeSet<String>` or a sorted-string hash key.
+- **Pickle support.** `HypergraphCore` implements `__getstate__`/`__setstate__` for pickle/deepcopy. The Rust type needs PyO3 equivalents or an alternative serialization path.
+
 ### Envelope after Phase 1
 
 | Dimension | Before | After |
@@ -146,13 +181,15 @@ All existing tests pass against the Rust core because the API surface is identic
 | Memory for 1M edges | ~600MB–1GB | ~150MB |
 | Concurrent reads | N (Python RWLock) | N (no GIL, true parallel) |
 
+*Projections, not benchmarks. Actual performance depends on graph topology, property sizes, and workload.*
+
 ---
 
 ## Phase 2: Disk-First Storage
 
 *Data lives on disk. The engine queries storage on demand. RAM = cache, not the graph.*
 
-This is the fundamental architecture shift. The in-memory index design (6 HashMaps holding the full graph) is replaced by a storage engine that serves indexed lookups from disk with a page cache for hot data.
+This is the fundamental architecture shift. The in-memory index design (7 HashMaps holding the full graph) is replaced by a storage engine that serves indexed lookups from disk with a page cache for hot data.
 
 ### The StorageEngine trait
 
@@ -167,6 +204,7 @@ pub trait StorageEngine: Send + Sync {
     fn edges_by_vertex_set(&self, ns: &str, hash: &str) -> Vec<Hyperedge>;
     fn edges_by_type(&self, ns: &str, edge_type: &str) -> Vec<Hyperedge>;
     fn nodes_by_type(&self, ns: &str, node_type: &str) -> Vec<Node>;
+    fn edges_referencing(&self, ns: &str, edge_id: &str) -> Vec<Hyperedge>;
 
     // Filtered scans
     fn scan_edges(&self, ns: &str, filters: &EdgeFilters) -> Vec<Hyperedge>;
@@ -186,6 +224,8 @@ pub trait StorageEngine: Send + Sync {
 
 The graph logic (`graph.rs`, `activation.rs`) calls this trait. It doesn't know what's behind it.
 
+**Design note: `Vec` vs iterators.** The scan methods above return `Vec`, materializing full result sets in memory. For a disk-first architecture this is a tradeoff: a query matching 100K edges allocates all of them before the caller can filter or limit. The production implementation should consider `impl Iterator<Item = Hyperedge>` for scan methods to enable lazy evaluation and early termination, or add `limit`/`offset` parameters. `Vec` is shown here for API clarity.
+
 ### KV key layout
 
 All backends — embedded or distributed — use the same key-prefix scheme in an ordered key-value store:
@@ -198,20 +238,28 @@ t:{namespace}:n:{type}:{node_id}          → ()   (node type index)
 t:{namespace}:e:{type}:{edge_id}          → ()   (edge type index)
 v:{namespace}:{vertex_set_hash}:{edge_id} → ()   (vertex-set index)
 m:{namespace}:{ref_edge_id}:{edge_id}     → ()   (metagraph index)
-a:{namespace}:{kind}:{ref_id}             → AccessStats (access log)
+c:{namespace}:{created_at_ms}:{edge_id}  → ()   (creation-time index)
+x:{namespace}:{expired_at_ms}:{edge_id}  → ()   (expiry-time index)
+a:{namespace}:{kind}:{ref_id}            → AccessStats (access log)
 ```
 
 Point lookup: `get("n:default:Alice")` — O(1) in any backend.
 Index scan: `scan_prefix("i:default:Alice:")` — all edges containing Alice.
 Vertex-set lookup: `scan_prefix("v:default:{hash}:")` — exact node-set match.
+Temporal query: range scan on `c:` prefix supports `since`/`before` filters. Active-edge queries combine `c:` and `x:` prefixes.
 
 ### Backend: SQLite (rusqlite)
 
 First disk-first backend. Uses `rusqlite` to talk to SQLite directly from Rust — no Python sqlite3, no FFI overhead for each query.
 
-Same SQLite schema as today. Existing `.db` files work unchanged. This is a non-breaking migration.
+Same SQLite schema as today. The goal is that existing `.db` files work unchanged, but the migration needs care:
 
-**Why start here:** backward compatibility. Users upgrade the package and their existing databases just work.
+- **Extension loading.** The current Python code loads sqlite-vec via `sqlite_vec.load(conn)` (a Python C extension shim). Rust must load the sqlite-vec shared library directly via `rusqlite`'s `load_extension()`, with different platform-specific paths and linking requirements.
+- **PRAGMA settings.** The current code sets `journal_mode=WAL` and `foreign_keys=ON` at connection open. The Rust backend must reproduce these exactly; different WAL behavior or missing foreign key enforcement would silently change semantics.
+- **Schema versioning.** The current schema is at version 5, tracked in the `meta` table. The Rust backend must read and respect this version, and any new schema changes need the same version-check + migration pattern.
+- **Embedding dimension lock.** `SQLiteStorage` locks embedding dimension on first use via `_ensure_vec_table()`. The Rust backend must enforce the same constraint or document how to handle dimension mismatches.
+
+**Why start here:** backward compatibility. With the above handled, users upgrade the package and their existing databases work unchanged.
 
 ### Backend: redb or fjall (pure Rust)
 
@@ -245,6 +293,8 @@ The budget bound is what makes disk-backed activation practical. You visit a fix
 | Memory footprint | O(graph) | **O(cache size)** — configurable |
 | Max database size | ~2GB (practical RAM limit) | **100GB+** (SQLite/redb file limit) |
 | Existing .db files | — | Work unchanged (SQLite backend) |
+
+*Projections. Actual limits depend on hardware, data shape, and cache configuration.*
 
 ---
 
@@ -292,6 +342,8 @@ The SQLite backend continues using sqlite-vec. The redb/fjall backend uses usear
 | Vector search latency | ~10ms | **<1ms** |
 | Semantic entity expansion | Bottleneck at scale | Scales to millions of embeddings |
 
+*Projections based on usearch benchmarks, not hypabase-specific measurements.*
+
 ---
 
 ## Phase 4: Networked Backends
@@ -331,6 +383,8 @@ A Rust client exists ([`foundationdb-rs`](https://github.com/foundationdb-rs/fou
 | Storage | Hundreds of GB (single disk) | **Unlimited** (distributed) |
 | Deployment | Embedded library | Library or client-server |
 
+*Projections. Distributed system performance depends heavily on network topology and consistency requirements.*
+
 ---
 
 ## Summary
@@ -357,6 +411,6 @@ Each phase is independently valuable and ships as a release. Users on Phase 0 ge
 
 1. **Same Python API.** `hb.edge(...)`, `hb.recall(...)`, `hb.remember(...)` work the same regardless of backend.
 2. **Same MCP tools.** The MCP server doesn't know or care what storage engine is underneath.
-3. **Backward-compatible files.** The SQLite backend always reads existing `.db` files.
+3. **Backward-compatible files.** The SQLite backend reads existing `.db` files, given correct extension loading, PRAGMA settings, and schema version handling (see Phase 2 migration notes).
 4. **StorageEngine trait is the boundary.** All backends implement the same trait. Graph logic, activation, and memory are backend-agnostic.
 5. **Budget-bounded activation.** Recall cost is O(budget), not O(graph), at every phase.
