@@ -25,14 +25,11 @@
   "tools": [
     "remember",
     "recall",
-    "forget",
     "consolidate",
-    "connections",
-    "who_knows_what",
-    "resolve_contradiction"
+    "forget"
   ],
   "dependencies": {
-    "python": ">=3.10",
+    "python": ">=3.11",
     "packages": ["hypabase"]
   }
 }

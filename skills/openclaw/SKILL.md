@@ -1,204 +1,277 @@
-# Hypabase Memory Skill
+---
+metadata:
+  clawdbot:
+    emoji: "🧠"
+    requires:
+      env: []
+      bins: ["hypabase-memory"]
+    primaryEnv: "HYPABASE_DB_PATH"
+    files: []
+---
 
-A persistent memory system for AI agents that understands WHO did WHAT to WHOM — powered by a hypergraph engine with semantic roles, provenance tracking, and neuroscience-informed decay.
+# Hypabase Memory
 
-## Memory Protocol
+Persistent structured memory for AI agents — store and recall WHO did WHAT to WHOM using PENMAN notation, semantic roles, and provenance.
 
-### When to Remember
-- After decisions, preferences, stated facts, assigned tasks, or events
-- When the user tells you something about themselves or their project
-- After learning a procedure or workflow
+## When to Remember
 
-### How to Structure
-Every memory is an **ACTION** (verb) with **PARTICIPANTS** in **ROLES** (kāraka):
+Store a memory when the user:
+- Makes a decision or states a preference
+- Shares a fact about themselves, their team, or a project
+- Assigns a task or delegates work
+- Describes an event, meeting, or outcome
+- Explains a procedure or workflow
 
-| Role | Meaning | Example |
-|------|---------|---------|
-| `agent` | Who did it | Alice |
-| `object` | What was acted upon | the proposal |
-| `instrument` | By what means | Slack |
-| `recipient` | For/to whom | Bob |
-| `source` | From where | the old system |
-| `locus` | Where/when | sprint review |
+## PENMAN Notation
 
-### Memory Types
-| Type | Use for | Decay |
-|------|---------|-------|
+Every memory is a verb with participants in role slots:
+
+```
+(verb :role "entity" :role "entity" ...)
+```
+
+Examples:
+
+```
+(prefers :subject Alice :object Python :memory_type semantic)
+
+(assigned :subject Alice :object "billing task" :recipient Bob
+ :instrument Jira :locus Monday :tense past :memory_type episodic)
+
+(has :subject "quick sort" :attribute "time complexity"
+ :value "O(n log n)" :memory_type semantic)
+
+(uses :subject Django :object "Python 2" :negated true :memory_type semantic)
+```
+
+Multiple atoms in a single call:
+
+```
+(deployed :subject Alice :object API :locus Monday :tense past)
+(reviewed :subject Bob :object API :locus Tuesday :tense past)
+```
+
+## Roles
+
+Eight kāraka (semantic case) roles. Fill in what applies, skip what doesn't.
+
+| PENMAN role | Recall role | Meaning | Example |
+|-------------|-------------|---------|---------|
+| `:subject` | `subject` | Who or what it's about | Alice |
+| `:object` | `object` | What is acted on | the proposal |
+| `:instrument` | `instrument` | Tool, method, or means used | Slack |
+| `:recipient` | `recipient` | Who receives or benefits | Bob |
+| `:origin` | `source` | Where it came from, previous state | the old system |
+| `:locus` | `locus` | Where, when, or in what context | sprint review |
+| `:attribute` | `attribute` | A named property or dimension | time complexity |
+| `:value` | `value` | The specific value of that property | O(n log n) |
+
+Note: PENMAN uses `:origin` but `recall(role=...)` uses the internal name `source`.
+
+## Memory Types
+
+| Type | Use for | Decay rate |
+|------|---------|------------|
 | `episodic` | Events, meetings, conversations | Fast |
 | `semantic` | Facts, preferences, definitions | Slow |
 | `procedural` | How-to, workflows, processes | Slowest |
 
-### Importance Ratings
-- `0.9` — Critical (user preferences, key decisions)
-- `0.7` — Important (project facts, team structure)
-- `0.5` — Relevant (meeting notes, task updates)
-- `0.3` — Minor (casual mentions, context)
+Set via the `:memory_type` modifier in PENMAN.
 
-### Mood
-
-Mood captures the modality of a memory — what kind of truth it represents.
+## Mood
 
 | Mood | When to use | Example |
 |------|-------------|---------|
 | `actual` | Something that happened or is true (default) | "Alice deployed the API" |
-| `planned` | Something that will or is intended to happen | "Alice will deploy on Friday" |
+| `planned` | Something intended to happen | "Alice will deploy on Friday" |
 | `uncertain` | Something that might be true | "The API might have a memory leak" |
-| `normative` | Something that should or shouldn't be true | "We should use PostgreSQL" |
+| `normative` | Something that should or shouldn't be | "We should use PostgreSQL" |
+| `conditional` | Something that depends on a condition | "If tests pass, deploy" |
 
-When mood is omitted, it defaults to `actual`. Only set mood explicitly when the memory is planned, uncertain, or normative.
+Set via `:mood` modifier. Omit for `actual` (the default).
 
-### Negation
+## Negation & Modifiers
 
-Set `negated=true` when a memory expresses that something is NOT the case.
+| Modifier | Values | Default |
+|----------|--------|---------|
+| `:tense` | `past`, `present`, `future` | — |
+| `:negated` | `true`, `false` | `false` |
+| `:importance` | `0.0` to `1.0` | — |
+| `:mood` | `actual`, `planned`, `uncertain`, `normative`, `conditional` | `actual` |
+| `:memory_type` | `episodic`, `semantic`, `procedural` | — |
 
-| Statement | negated | mood |
-|-----------|---------|------|
-| "Alice uses Python" | false | actual |
-| "Alice does NOT use Java" | true | actual |
-| "We should NOT use MongoDB" | true | normative |
-| "Bob might not attend" | true | uncertain |
+Context modifiers (can hold nested atoms):
 
-### Decomposition Rule
+| Modifier | Meaning |
+|----------|---------|
+| `:cause` | Why it happened |
+| `:purpose` | What for |
+| `:condition` | If/when/unless |
 
-**One action per memory.** When a sentence contains multiple actions, decompose it into separate `remember()` calls. Shared entities will link them in the graph.
+## Entity Naming Rules
 
-Example: "Alice told Bob to migrate the database"
-- Memory 1: action="tell", agent=Alice, recipient=Bob, object="database migration"
-- Memory 2: action="migrate", agent=Bob, object="database"
+Entity naming determines whether memories connect or fragment. This is critical.
 
-Both memories share the Bob and database entities, so they are naturally connected in the graph.
+- **Same string after lowercasing = same entity.** "Alice" and "alice" share one node.
+- **Different strings = different entities.** "Bob" and "Robert" create separate nodes until `consolidate()` merges them.
+- Pick one canonical name per entity and reuse it across all memories.
+- Use full descriptive names: "machine learning" not "ML", "JavaScript" not "JS".
+- Check the `resolved` field in `remember()` responses. If an entity you expected to be "existing" shows as "new", you have a naming inconsistency.
+- When `recall()` returns nothing, the most common cause is naming variance. Try the exact name used in `remember()`, or query by action/memory_type instead.
+- Call `consolidate()` periodically to merge similar names via semantic similarity.
 
-### Valence Templates
+## Decomposition Rule
 
-Use the verb class to determine which roles are needed:
+**One action per memory.** When a sentence contains multiple actions, decompose into separate atoms. Shared entities link them in the graph.
 
-| Verb class | Examples | Required roles |
-|------------|----------|---------------|
-| **Transfer** | assign, send, give, delegate | agent + object + recipient |
-| **State** | is, has, exists, contains | agent + object |
-| **Cognitive** | knows, believes, decided, learned | agent + object (+ source) |
-| **Creation** | built, wrote, designed, implemented | agent + object (+ instrument) |
-| **Preference** | prefers, likes, wants, avoids | agent + object |
-| **Communication** | told, asked, reported, announced | agent + object + recipient |
-| **Motion** | moved, deployed, migrated, shipped | agent + object + locus |
-| **Usage** | uses, runs, employs, applies | agent + object (+ instrument) |
-| **Evaluation** | approved, rejected, reviewed, rated | agent + object |
-| **Temporal** | scheduled, started, finished, delayed | agent + object + locus |
-
-## The Recall Mirror
-
-Remember and recall use the **same grammar**. The agent decomposes its query into grammar dimensions, the system stores and retrieves.
+"Alice told Bob to migrate the database":
 
 ```
-Remember stores:              Recall queries:
-──────────────────           ──────────────────
-entities + roles        →    entity + role filter + semantic vertex set lookup
-action (verb)           →    action filter
-memory_type             →    memory_type filter + type-specific decay
-mood                    →    mood filter
-negated                 →    negated filter
-importance              →    strength ranking (salience)
-confidence              →    strength ranking (confidence)
-text                    →    (stored for display, not queried directly)
-created_at              →    since / before filters
+(told :subject Alice :recipient Bob :object "database migration" :tense past)
+(migrate :subject Bob :object database :mood planned)
+```
+
+Both memories share the Bob entity, so they connect naturally.
+
+## Nesting
+
+Any role slot can hold a nested atom instead of a string:
+
+```
+(believes :subject Alice :object (is :subject deadline :value Friday))
+
+(caused :subject outage
+ :cause (deployed :subject Bob :object "broken build"))
 ```
 
 ## Tools
 
-### remember
-Store a memory: ACTION + ENTITIES in ROLES. At least 2 entities required (it's a hyperedge).
+### remember(penman, source?, confidence?)
+
+Store memories as PENMAN atoms.
 
 **Parameters:**
-- `action` (required): The verb (e.g., "assigned", "prefers", "deployed").
-- `entities` (required): Participants — list of dicts with `name` (required), `role` (kāraka), and optional `type` (default "entity"). Minimum 2.
-- `text` (optional): Human-readable form. Stored for display only, not parsed.
-- `memory_type` (optional): "episodic", "semantic", or "procedural".
-- `importance` (optional): 0.0-1.0 importance rating.
-- `mood` (optional): "actual", "planned", "uncertain", or "normative". Default: actual.
-- `negated` (optional): true if this is a negation. Default: false.
-- `source` (optional): Provenance source identifier. Default: "memory".
-- `confidence` (optional): Confidence score 0.0-1.0. Default: 1.0.
+- `penman` (required): One or more PENMAN atoms.
+- `source` (optional): Provenance source identifier. Default: `"memory"`.
+- `confidence` (optional): Confidence score 0.0–1.0. Default: `1.0`.
 
-**Returns:** Edge ID, node IDs, action, and any detected contradictions.
+**Returns:**
+```json
+{
+  "stored": 1,
+  "memories": [
+    {
+      "text": "Alice prefers Python",
+      "action": "prefers",
+      "roles": {"subject": "Alice", "object": "Python"},
+      "type": "semantic",
+      "resolved": {"Alice": "existing", "Python": "new"}
+    }
+  ],
+  "activated": [
+    {"text": "Alice uses Python daily", "shared": ["Alice", "Python"]}
+  ]
+}
+```
 
-### recall
-Recall memories using the same grammar you stored with. At least one dimension required.
+The `resolved` field only appears when at least one entity is new. The `activated` field shows related memories triggered by associative activation.
+
+### recall(entity?, action?, role?, memory_type?, mood?, negated?, since?, before?, limit?, min_strength?)
+
+Query memories using the same grammar you stored with. At least one parameter required.
 
 **Parameters:**
-- `entity` (optional): WHO/WHAT — entity name or list of names. Single: focused lookup. List: vertex set overlap (find memories involving ALL).
-- `action` (optional): Filter by action type (the verb).
-- `role` (optional): Filter by kāraka role (agent/object/instrument/recipient/source/locus).
-- `memory_type` (optional): Filter by memory type (episodic/semantic/procedural).
-- `mood` (optional): Filter by mood (actual/planned/uncertain/normative).
-- `negated` (optional): Filter — true=only negated, false=only positive.
-- `since` (optional): ISO date string — only memories created after this.
-- `before` (optional): ISO date string — only memories created before this.
-- `limit` (optional): Maximum results. Default: 10.
-- `min_strength` (optional): Minimum memory strength threshold. Default: 0.0.
+- `entity` (optional): Entity name or list of names. Single: focused lookup. List: finds memories involving ALL named entities.
+- `action` (optional): Filter by verb.
+- `role` (optional): Filter by kāraka role (`subject`/`object`/`instrument`/`recipient`/`source`/`locus`/`attribute`/`value`).
+- `memory_type` (optional): `episodic` / `semantic` / `procedural`.
+- `mood` (optional): `actual` / `planned` / `uncertain` / `normative` / `conditional`.
+- `negated` (optional): `true` = only negated, `false` = only positive.
+- `since` (optional): ISO date string — only memories after this date.
+- `before` (optional): ISO date string — only memories before this date.
+- `limit` (optional): Maximum results. Default: `10`.
+- `min_strength` (optional): Minimum memory strength threshold. Default: `0.0`.
 
 **Examples:**
 - `recall(entity="Alice")` — everything about Alice
-- `recall(entity="Alice", action="assign", role="agent")` — what Alice assigned
+- `recall(entity="Alice", action="assign", role="subject")` — what Alice assigned
 - `recall(entity="Bob", role="recipient")` — what was done TO Bob
 - `recall(entity=["Alice", "API"])` — memories involving both
 - `recall(mood="planned")` — all plans
 - `recall(action="deploy", negated=true)` — what should NOT be deployed
 
-**Returns:** List of matching memories with scores, strength, roles, mood, negated, and memory type.
+**Returns:**
+```json
+{
+  "count": 2,
+  "memories": [
+    {
+      "text": "Alice prefers Python",
+      "action": "prefers",
+      "roles": {"subject": "Alice", "object": "Python"},
+      "when": "2025-12-01T14:30:00",
+      "reliability": "strong",
+      "type": "semantic"
+    }
+  ]
+}
+```
 
-### consolidate
-Compress repeated episodic memories into semantic knowledge. Call periodically to keep memory efficient.
+Reliability labels: `strong` (>= 0.7), `moderate` (>= 0.4), `faint` (< 0.4).
+
+### consolidate(entity?)
+
+Merge similar entities and compress repeated memories. Phase 1 merges semantically similar entity nodes (cosine >= 0.95). Phase 2 groups edges sharing the same vertex set into summaries.
 
 **Parameters:**
 - `entity` (optional): Only consolidate memories involving this entity.
 
 **Returns:** List of consolidated summaries.
 
-### forget
+Call periodically to keep memory efficient and to merge naming variants (e.g., "Bob" + "Robert").
+
+### forget(older_than_days?, min_strength?, entity?)
+
 Expire old or low-strength memories (soft delete).
 
 **Parameters:**
 - `older_than_days` (optional): Expire memories older than this many days.
 - `min_strength` (optional): Expire memories below this strength threshold.
 - `entity` (optional): Only forget memories involving this entity.
-- `memory_type` (optional): Only forget memories of this type.
-- `mood` (optional): Only forget memories of this mood.
 
 **Returns:** Number of memories expired.
 
-### connections
-Explore an entity's neighborhood in the memory graph using multi-hop BFS.
+## The Recall Mirror
 
-**Parameters:**
-- `entity` (required): The entity name to explore.
-- `max_hops` (optional): Maximum traversal depth. Default: 2.
-- `role` (optional): Filter by kāraka role.
+Remember and recall use the same grammar. What you store is how you query.
 
-**Returns:** Neighbors, connected edges, and path information.
+```
+Remember stores:              Recall queries:
+──────────────────           ──────────────────
+entities + roles        →    entity + role filter
+action (verb)           →    action filter
+memory_type             →    memory_type filter + type-specific decay
+mood                    →    mood filter
+negated                 →    negated filter
+importance              →    strength ranking (salience)
+confidence              →    strength ranking (confidence)
+created_at              →    since / before filters
+```
 
-### who_knows_what
-Summary of what the memory system knows: entity counts, edge counts, memory type breakdown, mood breakdown, and top entities.
+## Setup
 
-**Returns:** Statistics about stored knowledge.
+Install hypabase:
 
-### resolve_contradiction
-Resolve a contradiction between two memories (called after `remember` returns contradictions).
+```bash
+pip install hypabase
+# or
+uv pip install hypabase
+```
 
-**Parameters:**
-- `new_edge_id` (required): The newer memory edge ID.
-- `old_edge_id` (required): The older memory edge ID.
-- `resolution` (required): "supersede" (expire old), "keep_both", or "keep_old" (expire new).
-
-**Returns:** Resolution outcome.
-
-## Configuration
-
-Memory and embeddings are enabled by default — zero config required.
-
-Environment variables for customization:
-- `HYPABASE_EMBEDDER` — Embedder for semantic search (default: FastEmbed):
-  - `fastembed` / `fast` / `default` — BAAI/bge-small-en-v1.5 via ONNX (default).
-  - `openai` — Uses text-embedding-3-small via OpenAI API (requires `OPENAI_API_KEY`).
-  - `sentence-transformers` / `st` / `local` — Uses all-MiniLM-L6-v2 (requires `sentence-transformers`).
-  - `none` — Disable embeddings entirely.
-- `HYPABASE_DB_PATH` — SQLite database path (default: `hypabase.db`).
+Environment variables:
+- `HYPABASE_DB_PATH` — SQLite database path (default: `hypabase.db`)
+- `HYPABASE_EMBEDDER` — Embedder for semantic search:
+  - `fastembed` / `fast` / `default` — BAAI/bge-small-en-v1.5 via ONNX (default)
+  - `openai` — text-embedding-3-small (requires `OPENAI_API_KEY`)
+  - `sentence-transformers` / `st` / `local` — all-MiniLM-L6-v2
+  - `none` — Disable embeddings
