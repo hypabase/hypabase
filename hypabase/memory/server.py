@@ -136,6 +136,121 @@ def _safe_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
 
 
 # ===================================================================
+# Output helpers
+# ===================================================================
+
+
+def _reliability_label(strength: float) -> str:
+    """Map strength score to a word the agent can reason with."""
+    if strength >= 0.7:
+        return "strong"
+    if strength >= 0.4:
+        return "moderate"
+    return "faint"
+
+
+def _detect_contradictions(results: list[dict]) -> list[dict]:
+    """Find memories that contradict each other (same action + entities, opposite negation)."""
+    contradictions: list[dict] = []
+    for i, a in enumerate(results):
+        for b in results[i + 1 :]:
+            if a.get("action") != b.get("action"):
+                continue
+            a_neg = a.get("negated", False)
+            b_neg = b.get("negated", False)
+            if a_neg == b_neg:
+                continue
+            # Same action, opposite negation -- check entity overlap
+            a_entities = set(a.get("roles", {}).values()) if isinstance(a.get("roles"), dict) else set()
+            b_entities = set(b.get("roles", {}).values()) if isinstance(b.get("roles"), dict) else set()
+            # Flatten lists from multi-valued roles
+            a_flat: set[str] = set()
+            for v in a_entities:
+                if isinstance(v, list):
+                    a_flat.update(v)
+                else:
+                    a_flat.add(v)
+            b_flat: set[str] = set()
+            for v in b_entities:
+                if isinstance(v, list):
+                    b_flat.update(v)
+                else:
+                    b_flat.add(v)
+            shared = a_flat & b_flat
+            if len(shared) >= 1:
+                pos, neg = (a, b) if not a_neg else (b, a)
+                contradictions.append({
+                    "positive": pos["text"],
+                    "negative": neg["text"],
+                    "shared": sorted(shared),
+                })
+    return contradictions
+
+
+def _format_remember(raw: dict) -> dict:
+    """Reshape agent.py remember() output for agent consumption."""
+    memories = []
+    for r in raw["edges"]:
+        m: dict[str, Any] = {
+            "text": r["text"],
+            "action": r["action"],
+            "roles": {e["role"]: e["name"] for e in r["entities"]},
+        }
+        if r.get("memory_type"):
+            m["type"] = r["memory_type"]
+        if r.get("mood") and r["mood"] != "actual":
+            m["mood"] = r["mood"]
+        # Entity recognition feedback: did the system know these entities?
+        resolved = {e["name"]: e["status"] for e in r["entities"]}
+        if any(v == "new" for v in resolved.values()):
+            m["resolved"] = resolved
+        memories.append(m)
+
+    result: dict[str, Any] = {"stored": raw["stored"], "memories": memories}
+
+    # Associative activation: what related memories were triggered?
+    if raw.get("related"):
+        result["activated"] = [
+            {"text": r["text"], "shared": r["shared_entities"]}
+            for r in raw["related"]
+        ]
+    return result
+
+
+def _format_recall(results: list[dict]) -> dict:
+    """Reshape agent.py recall() output for agent consumption."""
+    memories = []
+    for r in results:
+        m: dict[str, Any] = {
+            "text": r["text"],
+            "action": r.get("action"),
+            "roles": r.get("roles", {}),
+            "when": r.get("created_at"),
+            "reliability": _reliability_label(r["strength"]),
+        }
+        # Classification -- only include when set
+        mt = r.get("memory_type")
+        if mt:
+            m["type"] = mt
+        # Modality -- only include when non-default
+        mood = r.get("mood", "actual")
+        if mood != "actual":
+            m["mood"] = mood
+        if r.get("negated"):
+            m["negated"] = True
+        memories.append(m)
+
+    result: dict[str, Any] = {"count": len(memories), "memories": memories}
+
+    # Surface contradictions the agent should be aware of
+    contradictions = _detect_contradictions(results)
+    if contradictions:
+        result["contradictions"] = contradictions
+
+    return result
+
+
+# ===================================================================
 # Memory tools (4)
 # ===================================================================
 
@@ -212,7 +327,8 @@ def remember(
         confidence: Confidence score between 0.0 and 1.0.
     """
     mem = _get_memory()
-    return mem.remember(penman=penman, source=source, confidence=confidence)
+    raw = mem.remember(penman=penman, source=source, confidence=confidence)
+    return _format_remember(raw)
 
 
 @mcp.tool()
@@ -280,27 +396,7 @@ def recall(
         limit=limit,
         min_strength=min_strength,
     )
-    return {
-        "count": len(results),
-        "memories": [
-            {
-                "edge_id": r["edge"].id,
-                "type": r["edge"].type,
-                "node_ids": r["edge"].node_ids,
-                "text": r["text"],
-                "score": r["score"],
-                "strength": r["strength"],
-                "source": r["edge"].source,
-                "confidence": r["edge"].confidence,
-                "action": r.get("action"),
-                "memory_type": r.get("memory_type"),
-                "mood": r.get("mood", "actual"),
-                "negated": r.get("negated", False),
-                "roles": r.get("roles", {}),
-            }
-            for r in results
-        ],
-    }
+    return _format_recall(results)
 
 
 @mcp.tool()

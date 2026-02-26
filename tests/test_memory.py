@@ -211,7 +211,7 @@ class TestRemember:
         results = mem.recall(entity="Alice", role="subject")
         assert len(results) >= 1
         for r in results:
-            assert r["roles"].get("Alice") == "subject"
+            assert r["roles"].get("subject") == "Alice"
         mem.hb.close()
 
     def test_recall_filter_by_memory_type(self, tmp_db_path):
