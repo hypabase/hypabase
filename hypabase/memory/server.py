@@ -106,8 +106,19 @@ mcp = FastMCP(
         "8 roles: :subject (who), :object (what), :recipient (to whom), "
         ":instrument (how), :origin (from where), :locus (where/when), "
         ":attribute (property), :value (its value).\n"
-        "Nest atoms for beliefs/causes: (believes :subject X :object (is ...))\n"
-        "Entity names are matched by normalized cache (exact match after lowercasing)."
+        "Nest atoms for beliefs/causes: (believes :subject X :object (is ...))\n\n"
+        "ENTITY NAMING -- this determines whether memories connect or fragment.\n"
+        'Same string after lowercasing = same entity. "Alice" and "alice" share one node.\n'
+        'Different strings = different entities. "Bob" and "Robert" create separate nodes '
+        "until consolidate() merges them.\n"
+        "Rules of thumb:\n"
+        "- Pick one canonical name per entity and reuse it across all memories.\n"
+        '- Use full descriptive names: "machine learning" not "ML", "JavaScript" not "JS".\n'
+        "- Check the resolved field in remember() responses. If an entity you expected to "
+        'be "existing" shows as "new", you likely have a naming inconsistency.\n'
+        "- When recall returns nothing, the most common cause is naming variance. "
+        "Try the exact name you used in remember(), or query by action/memory_type instead.\n"
+        "- Call consolidate() periodically to merge similar names via semantic similarity."
     ),
     lifespan=app_lifespan,
 )
@@ -133,6 +144,76 @@ def _safe_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
             return {"error": True, "category": "internal", "type": type(exc).__name__, "message": str(exc)}
 
     return wrapper
+
+
+# ===================================================================
+# Output helpers
+# ===================================================================
+
+
+def _reliability_label(strength: float) -> str:
+    """Map strength score to a word the agent can reason with."""
+    if strength >= 0.7:
+        return "strong"
+    if strength >= 0.4:
+        return "moderate"
+    return "faint"
+
+
+def _format_remember(raw: dict) -> dict:
+    """Reshape agent.py remember() output for agent consumption."""
+    memories = []
+    for r in raw["edges"]:
+        m: dict[str, Any] = {
+            "text": r["text"],
+            "action": r["action"],
+            "roles": {e["role"]: e["name"] for e in r["entities"]},
+        }
+        if r.get("memory_type"):
+            m["type"] = r["memory_type"]
+        if r.get("mood") and r["mood"] != "actual":
+            m["mood"] = r["mood"]
+        # Entity recognition feedback: did the system know these entities?
+        resolved = {e["name"]: e["status"] for e in r["entities"]}
+        if any(v == "new" for v in resolved.values()):
+            m["resolved"] = resolved
+        memories.append(m)
+
+    result: dict[str, Any] = {"stored": raw["stored"], "memories": memories}
+
+    # Associative activation: what related memories were triggered?
+    if raw.get("related"):
+        result["activated"] = [
+            {"text": r["text"], "shared": r["shared_entities"]}
+            for r in raw["related"]
+        ]
+    return result
+
+
+def _format_recall(results: list[dict]) -> dict:
+    """Reshape agent.py recall() output for agent consumption."""
+    memories = []
+    for r in results:
+        m: dict[str, Any] = {
+            "text": r["text"],
+            "action": r.get("action"),
+            "roles": r.get("roles", {}),
+            "when": r.get("created_at"),
+            "reliability": _reliability_label(r["strength"]),
+        }
+        # Classification -- only include when set
+        mt = r.get("memory_type")
+        if mt:
+            m["type"] = mt
+        # Modality -- only include when non-default
+        mood = r.get("mood", "actual")
+        if mood != "actual":
+            m["mood"] = mood
+        if r.get("negated"):
+            m["negated"] = True
+        memories.append(m)
+
+    return {"count": len(memories), "memories": memories}
 
 
 # ===================================================================
@@ -206,13 +287,22 @@ def remember(
         (deployed :subject Alice :object API :locus Monday :tense past)
         (reviewed :subject Bob :object API :locus Tuesday :tense past)
 
+    ENTITY NAMING
+    -------------
+    Use the same name each time you refer to an entity. "Alice Smith" and
+    "alice smith" are the same entity (case-insensitive), but "Alice" and
+    "Alice Smith" are different entities until consolidate() merges them.
+    Check the "resolved" field in the response to see if entities matched
+    existing ones ("existing") or created new nodes ("new").
+
     Args:
         penman: One or more PENMAN atoms.
         source: Provenance source identifier.
         confidence: Confidence score between 0.0 and 1.0.
     """
     mem = _get_memory()
-    return mem.remember(penman=penman, source=source, confidence=confidence)
+    raw = mem.remember(penman=penman, source=source, confidence=confidence)
+    return _format_remember(raw)
 
 
 @mcp.tool()
@@ -252,6 +342,10 @@ def recall(
     - recall(mood="planned")                                 -- all plans
     - recall(action="deploy", negated=true)                  -- what should NOT be deployed
 
+    If recall returns no results, the most common cause is a naming
+    variance (e.g., "Bob" vs "Robert"). Try the exact name used in
+    remember(), or try recall by action or memory_type instead.
+
     Args:
         entity: Entity name or list of names for lookup.
         action: Filter by action type (the verb).
@@ -280,27 +374,7 @@ def recall(
         limit=limit,
         min_strength=min_strength,
     )
-    return {
-        "count": len(results),
-        "memories": [
-            {
-                "edge_id": r["edge"].id,
-                "type": r["edge"].type,
-                "node_ids": r["edge"].node_ids,
-                "text": r["text"],
-                "score": r["score"],
-                "strength": r["strength"],
-                "source": r["edge"].source,
-                "confidence": r["edge"].confidence,
-                "action": r.get("action"),
-                "memory_type": r.get("memory_type"),
-                "mood": r.get("mood", "actual"),
-                "negated": r.get("negated", False),
-                "roles": r.get("roles", {}),
-            }
-            for r in results
-        ],
-    }
+    return _format_recall(results)
 
 
 @mcp.tool()

@@ -175,6 +175,7 @@ class Memory:
                         "name": slot_val,
                         "node_id": node_id,
                         "status": status,
+                        "role": role_key,
                     }
                 )
 
@@ -208,6 +209,8 @@ class Memory:
             "action": atom.verb.strip().lower(),
             "text": embed_text,
             "entities": entity_reports,
+            "memory_type": props.get("memory_type"),
+            "mood": props.get("mood"),
         }
 
     def _extract_modifiers(self, atom: Atom) -> dict[str, Any]:
@@ -498,6 +501,7 @@ class Memory:
                         "mood": edge.properties.get("mood", "actual"),
                         "negated": edge.properties.get("negated", False),
                         "roles": edge_roles,
+                        "created_at": edge.created_at.isoformat() if edge.created_at else None,
                     }
                 )
 
@@ -768,15 +772,22 @@ class Memory:
         return aliases
 
     @staticmethod
-    def _extract_roles(edge: Any) -> dict[str, str]:
-        """Extract a roles mapping {node_id: role} from an edge's incidences."""
-        roles: dict[str, str] = {}
+    def _extract_roles(edge: Any) -> dict[str, str | list[str]]:
+        """Extract a roles mapping {role: entity} from an edge's incidences."""
+        roles: dict[str, str | list[str]] = {}
         for inc in edge.incidences:
             nid = inc.node_id if hasattr(inc, "node_id") else getattr(inc, "node_id", None)
             if nid is not None:
                 role = inc.properties.get("role") if hasattr(inc, "properties") else None
                 if role:
-                    roles[nid] = role
+                    if role in roles:
+                        existing = roles[role]
+                        if isinstance(existing, list):
+                            existing.append(nid)
+                        else:
+                            roles[role] = [existing, nid]
+                    else:
+                        roles[role] = nid
         return roles
 
     @staticmethod

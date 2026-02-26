@@ -125,7 +125,7 @@ class TestMemoryToolsIntegration:
         assert "error" not in result
         assert result["count"] >= 1
         for m in result["memories"]:
-            assert m["roles"].get("Alice") == "subject"
+            assert m["roles"].get("subject") == "Alice"
 
     def test_recall_with_action_filter(self, memory_client):
         """recall() filters by action type."""
@@ -186,3 +186,107 @@ class TestMemoryToolsIntegration:
         result = srv.recall(entity="Alice", since="2099-01-01T00:00:00+00:00")
         assert "error" not in result
         assert result["count"] == 0
+
+
+class TestAgentOutputFormat:
+    """Tests for the agent-friendly output format."""
+
+    def test_recall_has_when_and_reliability(self, memory_client):
+        """recall returns temporal grounding and reliability label."""
+        srv.remember(penman="(likes :subject Alice :object Python)")
+        result = srv.recall(entity="Alice")
+        assert result["count"] >= 1
+        m = result["memories"][0]
+        assert "when" in m
+        assert m["when"] is not None  # ISO timestamp
+        assert m["reliability"] in ("strong", "moderate", "faint")
+
+    def test_recall_omits_default_mood_and_negated(self, memory_client):
+        """Default mood='actual' and negated=False are omitted from output."""
+        srv.remember(penman="(likes :subject Alice :object Python)")
+        result = srv.recall(entity="Alice")
+        m = result["memories"][0]
+        assert "mood" not in m  # actual is default, omitted
+        assert "negated" not in m  # False is default, omitted
+
+    def test_recall_includes_non_default_mood(self, memory_client):
+        """Non-default mood is included in output."""
+        srv.remember(penman="(deploy :subject Alice :object API :mood planned)")
+        result = srv.recall(mood="planned")
+        m = result["memories"][0]
+        assert m["mood"] == "planned"
+
+    def test_recall_includes_negated_when_true(self, memory_client):
+        """negated=True is included in output."""
+        srv.remember(penman="(use :subject team :object Java :negated true)")
+        result = srv.recall(action="use", negated=True)
+        m = result["memories"][0]
+        assert m["negated"] is True
+
+    def test_recall_roles_are_role_to_entity(self, memory_client):
+        """Roles mapping is {role: entity}, not {entity: role}."""
+        srv.remember(penman="(assigned :subject Alice :object task :recipient Bob)")
+        result = srv.recall(entity="Alice")
+        m = result["memories"][0]
+        assert m["roles"]["subject"] == "Alice"
+        assert m["roles"]["object"] == "task"
+        assert m["roles"]["recipient"] == "Bob"
+
+    def test_recall_memory_type_as_type(self, memory_client):
+        """memory_type is returned as 'type' field."""
+        srv.remember(penman="(knows :subject Alice :object Python :memory_type semantic)")
+        result = srv.recall(entity="Alice")
+        m = result["memories"][0]
+        assert m["type"] == "semantic"
+        assert "memory_type" not in m
+
+    def test_recall_no_internal_ids(self, memory_client):
+        """Output has no internal IDs (edge_id, node_ids)."""
+        srv.remember(penman="(likes :subject Alice :object Python)")
+        result = srv.recall(entity="Alice")
+        m = result["memories"][0]
+        assert "edge_id" not in m
+        assert "node_ids" not in m
+        assert "score" not in m
+        assert "strength" not in m
+        assert "source" not in m
+        assert "confidence" not in m
+
+    def test_remember_output_format(self, memory_client):
+        """remember() returns agent-friendly format with roles and resolved."""
+        result = srv.remember(penman="(prefers :subject Alice :object Python :memory_type semantic)")
+        assert result["stored"] == 1
+        m = result["memories"][0]
+        assert m["text"]
+        assert m["action"] == "prefers"
+        assert m["roles"]["subject"] == "Alice"
+        assert m["roles"]["object"] == "Python"
+        assert m["type"] == "semantic"
+        # No internal IDs
+        assert "edge_id" not in m
+        assert "entities" not in m
+
+    def test_remember_reports_new_entities(self, memory_client):
+        """First-time entities are flagged in 'resolved'."""
+        result = srv.remember(penman="(likes :subject NewPerson :object NewThing)")
+        m = result["memories"][0]
+        assert "resolved" in m
+        assert m["resolved"]["NewPerson"] == "new"
+        assert m["resolved"]["NewThing"] == "new"
+
+    def test_remember_omits_resolved_when_all_known(self, memory_client):
+        """resolved is omitted when all entities are known."""
+        srv.remember(penman="(likes :subject Alice :object Python)")
+        result = srv.remember(penman="(teaches :subject Alice :object Python)")
+        m = result["memories"][0]
+        assert "resolved" not in m
+
+    def test_remember_activated_on_related_memories(self, memory_client):
+        """Related memories appear as 'activated'."""
+        srv.remember(penman="(likes :subject Alice :object Python)")
+        result = srv.remember(penman="(teaches :subject Alice :object Python)")
+        assert "activated" in result
+        assert len(result["activated"]) >= 1
+        a = result["activated"][0]
+        assert "text" in a
+        assert "shared" in a
