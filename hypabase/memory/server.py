@@ -161,21 +161,8 @@ def _detect_contradictions(results: list[dict]) -> list[dict]:
             if a_neg == b_neg:
                 continue
             # Same action, opposite negation -- check entity overlap
-            a_entities = set(a.get("roles", {}).values()) if isinstance(a.get("roles"), dict) else set()
-            b_entities = set(b.get("roles", {}).values()) if isinstance(b.get("roles"), dict) else set()
-            # Flatten lists from multi-valued roles
-            a_flat: set[str] = set()
-            for v in a_entities:
-                if isinstance(v, list):
-                    a_flat.update(v)
-                else:
-                    a_flat.add(v)
-            b_flat: set[str] = set()
-            for v in b_entities:
-                if isinstance(v, list):
-                    b_flat.update(v)
-                else:
-                    b_flat.add(v)
+            a_flat = _flatten_role_entities(a.get("roles", {}))
+            b_flat = _flatten_role_entities(b.get("roles", {}))
             shared = a_flat & b_flat
             if len(shared) >= 1:
                 pos, neg = (a, b) if not a_neg else (b, a)
@@ -185,6 +172,17 @@ def _detect_contradictions(results: list[dict]) -> list[dict]:
                     "shared": sorted(shared),
                 })
     return contradictions
+
+
+def _flatten_role_entities(roles: dict) -> set[str]:
+    """Extract all entity names from a roles dict, handling multi-valued roles."""
+    flat: set[str] = set()
+    for v in roles.values():
+        if isinstance(v, list):
+            flat.update(v)
+        else:
+            flat.add(v)
+    return flat
 
 
 def _format_remember(raw: dict) -> dict:
