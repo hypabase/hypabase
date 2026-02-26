@@ -428,7 +428,7 @@ class Hypabase:
 
     def edge(
         self,
-        nodes: list[str],
+        nodes: list[str] | None = None,
         *,
         type: str,
         directed: bool = False,
@@ -438,11 +438,21 @@ class Hypabase:
         id: str | None = None,
         valid_at: datetime | None = None,
         roles: list[str | None] | None = None,
+        incidences: list[dict[str, Any]] | None = None,
     ) -> Edge:
         """Create a hyperedge linking two or more nodes in one relationship.
 
         Nodes are auto-created if they don't exist. Provenance values
         fall back to the active ``context()`` block if not set explicitly.
+
+        There are two ways to specify participants:
+
+        1. **nodes** (simple): A list of node IDs. Use ``roles`` for kāraka.
+        2. **incidences** (advanced): A list of dicts, each with ``node_id``
+           or ``edge_ref_id``, plus optional ``properties``. Supports mixed
+           node and edge-ref incidences (metagraph patterns).
+
+        Exactly one of ``nodes`` or ``incidences`` must be provided.
 
         Args:
             nodes: Node IDs to connect. Must contain at least 2.
@@ -452,17 +462,17 @@ class Hypabase:
             confidence: Confidence score 0.0-1.0. Falls back to context or ``1.0``.
             properties: Arbitrary key-value metadata.
             id: Optional edge ID. Auto-generated UUID if omitted.
-            roles: Optional per-node semantic roles (kāraka). When provided,
-                ``len(roles)`` must equal ``len(nodes)``. Each role is stored
-                in the incidence's ``properties["role"]``. Use ``None`` entries
-                for nodes that have no role.
+            roles: Optional per-node semantic roles (kāraka). Only valid with
+                ``nodes``. ``len(roles)`` must equal ``len(nodes)``.
+            incidences: List of incidence dicts. Each dict must have either
+                ``node_id`` (str) or ``edge_ref_id`` (str), and may have
+                ``properties`` (dict). Cannot be used with ``nodes``/``roles``.
 
         Returns:
             The created Edge.
 
         Raises:
-            ValueError: If fewer than 2 nodes, any node ID is empty,
-                or ``roles`` length does not match ``nodes``.
+            ValueError: If arguments are invalid.
 
         Example:
             ```python
@@ -471,16 +481,14 @@ class Hypabase:
                 type="treatment",
                 source="clinical_records",
                 confidence=0.95,
-                roles=["agent", "object", "instrument"],
+                roles=["subject", "object", "instrument"],
             )
             ```
         """
-        if len(nodes) < 2:
-            raise ValueError("A hyperedge must connect at least 2 nodes.")
-        if any(not n for n in nodes):
-            raise ValueError("Node IDs must be non-empty strings")
-        if roles is not None and len(roles) != len(nodes):
-            raise ValueError(f"roles length ({len(roles)}) must match nodes length ({len(nodes)})")
+        if nodes is not None and incidences is not None:
+            raise ValueError("Provide either 'nodes' or 'incidences', not both.")
+        if nodes is None and incidences is None:
+            raise ValueError("Provide either 'nodes' or 'incidences'.")
 
         edge_id = id or str(uuid.uuid4())
         resolved_source = source or self._context_source or "unknown"
@@ -490,33 +498,68 @@ class Hypabase:
             else (self._context_confidence if self._context_confidence is not None else 1.0)
         )
 
-        # Auto-create nodes
-        for node_id in nodes:
-            if not self._store.get_node(node_id):
-                new_node = CoreNode(id=node_id, type="unknown")
-                self._store.add_node(new_node)
-                if self._storage:
-                    self._storage.write_node(self._current_ns, new_node)
+        if incidences is not None:
+            # Advanced path: mixed node_id + edge_ref_id incidences
+            if roles is not None:
+                raise ValueError("'roles' cannot be used with 'incidences'. Put roles in incidence properties.")
+            if len(incidences) < 2:
+                raise ValueError("A hyperedge must have at least 2 incidences.")
 
-        # Build incidences — for directed edges, first node is tail, last is head
-        def _inc_props(idx: int) -> dict[str, Any]:
-            if roles is not None and roles[idx] is not None:
-                return {"role": roles[idx]}
-            return {}
+            core_incidences: list[CoreIncidence] = []
+            for inc_dict in incidences:
+                nid = inc_dict.get("node_id")
+                erid = inc_dict.get("edge_ref_id")
+                inc_props = dict(inc_dict.get("properties", {}))
 
-        if directed:
-            incidences = [
-                CoreIncidence(node_id=nodes[0], direction="tail", properties=_inc_props(0)),
-                *[CoreIncidence(node_id=nodes[i], properties=_inc_props(i)) for i in range(1, len(nodes) - 1)],
-                CoreIncidence(node_id=nodes[-1], direction="head", properties=_inc_props(len(nodes) - 1)),
-            ]
+                if nid is not None:
+                    # Auto-create node if needed
+                    if not self._store.get_node(nid):
+                        new_node = CoreNode(id=nid, type="unknown")
+                        self._store.add_node(new_node)
+                        if self._storage:
+                            self._storage.write_node(self._current_ns, new_node)
+                    core_incidences.append(CoreIncidence(node_id=nid, properties=inc_props))
+                elif erid is not None:
+                    core_incidences.append(CoreIncidence(edge_ref_id=erid, properties=inc_props))
+                else:
+                    raise ValueError("Each incidence must have either 'node_id' or 'edge_ref_id'.")
         else:
-            incidences = [CoreIncidence(node_id=n, properties=_inc_props(i)) for i, n in enumerate(nodes)]
+            # Original path: nodes list
+            assert nodes is not None  # for type checker
+            if len(nodes) < 2:
+                raise ValueError("A hyperedge must connect at least 2 nodes.")
+            if any(not n for n in nodes):
+                raise ValueError("Node IDs must be non-empty strings")
+            if roles is not None and len(roles) != len(nodes):
+                raise ValueError(f"roles length ({len(roles)}) must match nodes length ({len(nodes)})")
+
+            # Auto-create nodes
+            for node_id in nodes:
+                if not self._store.get_node(node_id):
+                    new_node = CoreNode(id=node_id, type="unknown")
+                    self._store.add_node(new_node)
+                    if self._storage:
+                        self._storage.write_node(self._current_ns, new_node)
+
+            # Build incidences — for directed edges, first node is tail, last is head
+            def _inc_props(idx: int) -> dict[str, Any]:
+                if roles is not None and roles[idx] is not None:
+                    return {"role": roles[idx]}
+                return {}
+
+            if directed:
+                core_incidences = [
+                    CoreIncidence(node_id=nodes[0], direction="tail", properties=_inc_props(0)),
+                    *[CoreIncidence(node_id=nodes[i], properties=_inc_props(i)) for i in range(1, len(nodes) - 1)],
+                    CoreIncidence(node_id=nodes[-1], direction="head", properties=_inc_props(len(nodes) - 1)),
+                ]
+            else:
+                core_incidences = [CoreIncidence(node_id=n, properties=_inc_props(i)) for i, n in enumerate(nodes)]
 
         core_edge = CoreEdge(
             id=edge_id,
             type=type,
-            incidences=incidences,
+            incidences=core_incidences,
             properties=properties or {},
             source=resolved_source,
             confidence=resolved_confidence,
@@ -1147,7 +1190,7 @@ class Hypabase:
             text=embed_text,
             embedding=blob,
             dimension=self._embedder.dimension,
-            model=getattr(self._embedder, "_model", "unknown"),
+            model=getattr(self._embedder, "_model_name", None) or str(type(self._embedder).__name__),
         )
         return True
 
@@ -1183,7 +1226,7 @@ class Hypabase:
             text=text,
             embedding=blob,
             dimension=self._embedder.dimension,
-            model=getattr(self._embedder, "_model", "unknown"),
+            model=getattr(self._embedder, "_model_name", None) or str(type(self._embedder).__name__),
         )
         return True
 

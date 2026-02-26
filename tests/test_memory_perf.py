@@ -17,14 +17,7 @@ class TestMemoryPerformance:
         mem = Memory(path=tmp_db_path)
         start = time.monotonic()
         for i in range(100):
-            mem.remember(
-                action="met",
-                entities=[
-                    {"name": "Alice Smith", "type": "person", "role": "agent"},
-                    {"name": f"Person{i} Jones", "type": "person", "role": "object"},
-                    {"name": f"Location{i} Park", "type": "location", "role": "locus"},
-                ],
-            )
+            mem.remember(f'(met :subject "Alice Smith" :object "Person{i} Jones" :locus "Location{i} Park")')
         elapsed = time.monotonic() - start
         assert elapsed < 5.0, f"100 remember() calls took {elapsed:.1f}s (limit: 5s)"
         mem.hb.close()
@@ -32,13 +25,7 @@ class TestMemoryPerformance:
     def test_recall_latency_10(self, tmp_db_path):
         mem = Memory(path=tmp_db_path)
         for i in range(10):
-            mem.remember(
-                action="met",
-                entities=[
-                    {"name": "Alice Smith", "type": "person", "role": "agent"},
-                    {"name": f"Person{i} Jones", "type": "person", "role": "object"},
-                ],
-            )
+            mem.remember(f'(met :subject "Alice Smith" :object "Person{i} Jones")')
         start = time.monotonic()
         results = mem.recall(entity="Alice Smith")
         elapsed = time.monotonic() - start
@@ -49,14 +36,7 @@ class TestMemoryPerformance:
     def test_recall_latency_100(self, tmp_db_path):
         mem = Memory(path=tmp_db_path)
         for i in range(100):
-            mem.remember(
-                action="met",
-                entities=[
-                    {"name": "Alice Smith", "type": "person", "role": "agent"},
-                    {"name": f"Person{i} Jones", "type": "person", "role": "object"},
-                    {"name": f"Location{i} Park", "type": "location", "role": "locus"},
-                ],
-            )
+            mem.remember(f'(met :subject "Alice Smith" :object "Person{i} Jones" :locus "Location{i} Park")')
         start = time.monotonic()
         results = mem.recall(entity="Alice Smith")
         elapsed = time.monotonic() - start
@@ -67,13 +47,7 @@ class TestMemoryPerformance:
     def test_forget_batch_50(self, tmp_db_path):
         mem = Memory(path=tmp_db_path)
         for i in range(50):
-            mem.remember(
-                action="met",
-                entities=[
-                    {"name": "Alice Smith", "type": "person", "role": "agent"},
-                    {"name": f"Person{i} Jones", "type": "person", "role": "object"},
-                ],
-            )
+            mem.remember(f'(met :subject "Alice Smith" :object "Person{i} Jones")')
         start = time.monotonic()
         count = mem.forget(min_strength=999.0)["expired_count"]
         elapsed = time.monotonic() - start

@@ -494,23 +494,29 @@ class SQLiteStorage(PersistenceEngine):
         model: str,
     ) -> None:
         """Save or update an embedding."""
-        self._conn.execute(
-            "INSERT OR REPLACE INTO embeddings"
-            " (id, namespace, kind, ref_id, text, embedding, dimension, model)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (id, namespace, kind, ref_id, text, embedding, dimension, model),
-        )
-        self._ensure_vec_table(dimension)
-        row = self._conn.execute("SELECT rowid FROM embeddings WHERE id = ?", (id,)).fetchone()
-        if row is None:
-            raise RuntimeError(f"Embedding '{id}' not found after insert — database may be corrupted")
-        rowid = row[0]
-        # Delete old vec entry (handles upsert case)
-        self._conn.execute("DELETE FROM vec_embeddings WHERE rowid = ?", (rowid,))
-        self._conn.execute(
-            "INSERT INTO vec_embeddings(rowid, namespace_hash, embedding) VALUES (?, ?, ?)",
-            (rowid, self._ns_hash(namespace), embedding),
-        )
+        try:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO embeddings"
+                " (id, namespace, kind, ref_id, text, embedding, dimension, model)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (id, namespace, kind, ref_id, text, embedding, dimension, model),
+            )
+            self._ensure_vec_table(dimension)
+            row = self._conn.execute("SELECT rowid FROM embeddings WHERE id = ?", (id,)).fetchone()
+            if row is None:
+                raise RuntimeError(f"Embedding '{id}' not found after insert — database may be corrupted")
+            rowid = row[0]
+            # Delete old vec entry (handles upsert case)
+            self._conn.execute("DELETE FROM vec_embeddings WHERE rowid = ?", (rowid,))
+            self._conn.execute(
+                "INSERT INTO vec_embeddings(rowid, namespace_hash, embedding) VALUES (?, ?, ?)",
+                (rowid, self._ns_hash(namespace), embedding),
+            )
+        except BaseException:
+            # Roll back any implicit transaction so callers don't inherit a dirty state
+            if self._tx_depth == 0 and self._conn.in_transaction:
+                self._conn.rollback()
+            raise
         self._auto_commit()
 
     def load_embeddings(

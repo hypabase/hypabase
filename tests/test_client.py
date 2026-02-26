@@ -335,13 +335,15 @@ class TestPersistence:
         store.add_node(CoreNode("B", "t"))
         store.add_edge(
             CoreEdge(
-                id="e1", type="link",
+                id="e1",
+                type="link",
                 incidences=[CoreIncidence(node_id="A"), CoreIncidence(node_id="B")],
             )
         )
         store.add_edge(
             CoreEdge(
-                id="e2", type="meta",
+                id="e2",
+                type="meta",
                 incidences=[CoreIncidence(node_id="A"), CoreIncidence(edge_ref_id="e1")],
             )
         )
@@ -479,6 +481,97 @@ class TestAdvancedOperations:
         assert e_restored.confidence == 0.8
         assert e_outside.source == "unknown"
         assert e_outside.confidence == 1.0
+
+
+class TestEdgeIncidences:
+    """Tests for the edge() incidences parameter (mixed node_id + edge_ref_id)."""
+
+    def test_incidences_with_node_ids(self):
+        hb = Hypabase()
+        edge = hb.edge(
+            incidences=[
+                {"node_id": "Alice", "properties": {"role": "subject"}},
+                {"node_id": "task", "properties": {"role": "object"}},
+            ],
+            type="assigned",
+        )
+        assert edge.type == "assigned"
+        roles = {inc.node_id: inc.properties.get("role") for inc in edge.incidences}
+        assert roles["Alice"] == "subject"
+        assert roles["task"] == "object"
+
+    def test_incidences_with_edge_ref(self, tmp_db_path):
+        hb = Hypabase(tmp_db_path)
+        inner = hb.edge(["deadline", "Friday"], type="is")
+        outer = hb.edge(
+            incidences=[
+                {"node_id": "Alice", "properties": {"role": "subject"}},
+                {"edge_ref_id": inner.id, "properties": {"role": "object"}},
+            ],
+            type="believes",
+        )
+        assert outer.type == "believes"
+        assert len(outer.incidences) == 2
+        node_incs = [inc for inc in outer.incidences if inc.node_id]
+        edge_ref_incs = [inc for inc in outer.incidences if inc.edge_ref_id]
+        assert len(node_incs) == 1
+        assert len(edge_ref_incs) == 1
+        assert edge_ref_incs[0].edge_ref_id == inner.id
+        hb.close()
+
+    def test_incidences_too_few_raises(self):
+        hb = Hypabase()
+        with pytest.raises(ValueError, match="at least 2 incidences"):
+            hb.edge(
+                incidences=[{"node_id": "Alice"}],
+                type="test",
+            )
+
+    def test_incidences_missing_id_raises(self):
+        hb = Hypabase()
+        with pytest.raises(ValueError, match="node_id.*edge_ref_id"):
+            hb.edge(
+                incidences=[
+                    {"node_id": "Alice"},
+                    {"properties": {"role": "object"}},  # missing node_id and edge_ref_id
+                ],
+                type="test",
+            )
+
+    def test_both_nodes_and_incidences_raises(self):
+        hb = Hypabase()
+        with pytest.raises(ValueError, match="not both"):
+            hb.edge(
+                ["Alice", "Bob"],
+                incidences=[{"node_id": "Alice"}, {"node_id": "Bob"}],
+                type="test",
+            )
+
+    def test_roles_with_incidences_raises(self):
+        hb = Hypabase()
+        with pytest.raises(ValueError, match="roles.*cannot.*incidences"):
+            hb.edge(
+                incidences=[{"node_id": "Alice"}, {"node_id": "Bob"}],
+                type="test",
+                roles=["subject", "object"],
+            )
+
+    def test_neither_nodes_nor_incidences_raises(self):
+        hb = Hypabase()
+        with pytest.raises(ValueError, match="either"):
+            hb.edge(type="test")
+
+    def test_incidences_auto_creates_nodes(self):
+        hb = Hypabase()
+        hb.edge(
+            incidences=[
+                {"node_id": "NewNode1"},
+                {"node_id": "NewNode2"},
+            ],
+            type="test",
+        )
+        assert hb.get_node("NewNode1") is not None
+        assert hb.get_node("NewNode2") is not None
 
 
 class TestEdgeCases:
@@ -1021,8 +1114,7 @@ class TestSchemaMigration:
             ("bob", "default", "person", "{}"),
         )
         conn.execute(
-            "INSERT INTO edges (id, namespace, type, source, confidence, properties)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO edges (id, namespace, type, source, confidence, properties) VALUES (?, ?, ?, ?, ?, ?)",
             ("e1", "default", "knows", "manual", 0.9, "{}"),
         )
         conn.execute(
@@ -1058,9 +1150,7 @@ class TestSchemaMigration:
 
         # Verify version is now 5 (v3→v4→v5 chain)
         conn = sqlite3.connect(tmp_db_path)
-        version = conn.execute(
-            "SELECT value FROM meta WHERE key = 'schema_version'"
-        ).fetchone()[0]
+        version = conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0]
         conn.close()
         assert version == "5"
 
@@ -1110,8 +1200,7 @@ class TestSchemaMigration:
             ("e_bad", "default", "bad"),
         )
         conn.execute(
-            "INSERT INTO incidences (edge_id, namespace, node_id, position)"
-            " VALUES (?, ?, NULL, ?)",
+            "INSERT INTO incidences (edge_id, namespace, node_id, position) VALUES (?, ?, NULL, ?)",
             ("e_bad", "default", 0),
         )
         conn.commit()

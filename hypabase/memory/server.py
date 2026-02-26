@@ -1,4 +1,4 @@
-"""Hypabase Memory MCP server — 7 tools for AI agent persistent memory."""
+"""Hypabase Memory MCP server -- 4 tools for AI agent persistent memory."""
 
 from __future__ import annotations
 
@@ -15,14 +15,14 @@ from mcp.server.fastmcp import FastMCP
 
 from hypabase.client import Hypabase
 from hypabase.memory import Memory
-from hypabase.memory.types import KarakaRole, MemoryType, Mood, ResolutionAction
+from hypabase.memory.types import KarakaRole, MemoryType, Mood
 
-# All logging goes to stderr — stdout is reserved for JSON-RPC
+# All logging goes to stderr -- stdout is reserved for JSON-RPC
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("hypabase.memory")
 
 # ---------------------------------------------------------------------------
-# Singletons — safe for single-process stdio MCP
+# Singletons -- safe for single-process stdio MCP
 # ---------------------------------------------------------------------------
 
 _CLIENT: Hypabase | None = None
@@ -97,20 +97,17 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[dict]:
 mcp = FastMCP(
     "Hypabase Memory",
     instructions=(
-        "You have persistent memory.\n"
-        '- remember(action="...", entities=[...]) — store a memory\n'
-        '- recall(entity="...") — find memories\n'
-        "- forget(older_than_days=30) — clean up\n\n"
-        'Example: remember(action="uses", entities=['
-        '{"name": "Alice", "role": "agent"}, '
-        '{"name": "Python", "role": "object"}])\n\n'
-        "Each memory is an ACTION with PARTICIPANTS in ROLES "
-        "(agent=who, object=what, instrument=how, recipient=for whom, "
-        "source=from where, locus=where/when).\n"
-        "Entity names are fuzzy-matched — the system resolves aliases "
-        "and similar names.\n"
-        "Resolve contradictions when remember() flags them.\n"
-        "Consolidate periodically to compress episodic clusters."
+        "You have persistent memory. Use PENMAN notation to store and recall facts.\n\n"
+        "remember(penman='(verb :role entity ...)') -- store memories\n"
+        "recall(entity='...') -- find memories\n"
+        "consolidate() -- merge similar entities and compress memories\n"
+        "forget(older_than_days=30) -- clean up\n\n"
+        "Example: remember(penman='(prefers :subject Alice :object Python :memory_type semantic)')\n\n"
+        "8 roles: :subject (who), :object (what), :recipient (to whom), "
+        ":instrument (how), :origin (from where), :locus (where/when), "
+        ":attribute (property), :value (its value).\n"
+        "Nest atoms for beliefs/causes: (believes :subject X :object (is ...))\n"
+        "Entity names are matched by normalized cache (exact match after lowercasing)."
     ),
     lifespan=app_lifespan,
 )
@@ -139,66 +136,83 @@ def _safe_tool(fn: Callable[..., dict]) -> Callable[..., dict]:
 
 
 # ===================================================================
-# Memory tools (7)
+# Memory tools (4)
 # ===================================================================
 
 
 @mcp.tool()
 @_safe_tool
 def remember(
-    action: str,
-    entities: list[dict[str, str]],
-    text: str | None = None,
-    memory_type: str | None = None,
-    importance: float | None = None,
-    mood: str | None = None,
-    negated: bool = False,
+    penman: str,
     source: str = "memory",
     confidence: float = 1.0,
 ) -> dict:
-    """Store a memory: ACTION + ENTITIES in ROLES.
+    """Store memories as PENMAN atoms: (verb :role entity ...)
 
-    Every memory is a verb (action) with participants (entities) in semantic
-    roles (kāraka). At least 2 entities required — it's a hyperedge.
+    FORMAT
+    ------
+    Each memory is a verb with participants in role slots:
 
-    Examples:
-        remember(action="prefers", entities=[
-            {"name": "Alice", "role": "agent"},
-            {"name": "Python", "role": "object"},
-            {"name": "Java", "role": "source"},
-        ])
+        (verb :role "entity" :role "entity" ...)
 
-        remember(action="assigned", entities=[
-            {"name": "Alice", "type": "person", "role": "agent"},
-            {"name": "API task", "type": "task", "role": "object"},
-            {"name": "Bob", "type": "person", "role": "recipient"},
-        ], memory_type="episodic", importance=0.7)
+    ROLES (fill in what applies, skip what doesn't)
+    -----
+    :subject     who or what it's about
+    :object      what is acted on
+    :recipient   who receives or benefits
+    :instrument  tool, method, or means used
+    :origin      where it came from, previous state
+    :locus       where, when, or in what context
+    :attribute   a named property or dimension
+    :value       the specific value of that property
+
+    MODIFIERS (metadata about the fact)
+    ---------
+    :tense        past, present, future
+    :mood         actual (default), planned, uncertain, normative, conditional
+    :negated      true or false
+    :memory_type  episodic (events), semantic (facts), procedural (how-to)
+    :importance   0.0 to 1.0
+
+    CONTEXT (why, for what, under what condition -- can be nested)
+    -------
+    :cause       why it happened
+    :purpose     what for
+    :condition   if/when/unless
+
+    NESTING
+    -------
+    Any slot can hold a nested atom instead of a string:
+
+        (believes :subject Alice :object (is :subject deadline :value Friday))
+
+    EXAMPLES
+    --------
+    Preference:
+        (prefers :subject Alice :object Python :memory_type semantic)
+
+    Event:
+        (assigned :subject Alice :object "billing task" :recipient Bob
+         :instrument Jira :locus Monday :tense past :memory_type episodic)
+
+    Property:
+        (has :subject "quick sort" :attribute "time complexity"
+         :value "O(n log n)" :memory_type semantic)
+
+    Negation:
+        (uses :subject Django :object "Python 2" :negated true :memory_type semantic)
+
+    Multiple facts:
+        (deployed :subject Alice :object API :locus Monday :tense past)
+        (reviewed :subject Bob :object API :locus Tuesday :tense past)
 
     Args:
-        action: The verb (e.g. "assigned", "prefers", "deployed").
-        entities: Participants — list of dicts with 'name' (required),
-            'role' (agent/object/instrument/recipient/source/locus),
-            and optional 'type' (default "entity").
-        text: Optional human-readable form. Stored for display only.
-        memory_type: "episodic" (events), "semantic" (facts), "procedural" (how-to).
-        importance: 0.0-1.0 importance rating.
-        mood: "actual", "planned", "uncertain", or "normative". Default: actual.
-        negated: True if the memory is a negation (e.g. "does NOT use Java").
+        penman: One or more PENMAN atoms.
         source: Provenance source identifier.
         confidence: Confidence score between 0.0 and 1.0.
     """
     mem = _get_memory()
-    return mem.remember(
-        action=action,
-        entities=entities,
-        text=text,
-        memory_type=cast(MemoryType | None, memory_type),
-        importance=importance,
-        mood=cast(Mood | None, mood),
-        negated=negated,
-        source=source,
-        confidence=confidence,
-    )
+    return mem.remember(penman=penman, source=source, confidence=confidence)
 
 
 @mcp.tool()
@@ -218,9 +232,9 @@ def recall(
     """Recall memories using the same grammar you stored with.
 
     Use the dimensions you know:
-    - entity: WHO/WHAT — "Alice", "API", or ["Alice", "API"] for both
-    - action: verb — "assign", "decide", "deploy"
-    - role: kāraka role — agent/object/instrument/recipient/source/locus
+    - entity: WHO/WHAT -- "Alice", "API", or ["Alice", "API"] for both
+    - action: verb -- "assign", "decide", "deploy"
+    - role: karaka role -- agent/object/instrument/recipient/source/locus
 
     Classification:
     - memory_type: "episodic" / "semantic" / "procedural"
@@ -231,27 +245,26 @@ def recall(
     - since / before: ISO date strings
 
     Examples:
-    - recall(entity="Alice")                                 — everything about Alice
-    - recall(entity="Alice", action="assign", role="agent")  — what Alice assigned
-    - recall(entity="Bob", role="recipient")                 — what was done TO Bob
-    - recall(entity=["Alice", "API"])                        — memories involving both
-    - recall(mood="planned")                                 — all plans
-    - recall(action="deploy", negated=true)                  — what should NOT be deployed
+    - recall(entity="Alice")                                 -- everything about Alice
+    - recall(entity="Alice", action="assign", role="subject")  -- what Alice assigned
+    - recall(entity="Bob", role="recipient")                 -- what was done TO Bob
+    - recall(entity=["Alice", "API"])                        -- memories involving both
+    - recall(mood="planned")                                 -- all plans
+    - recall(action="deploy", negated=true)                  -- what should NOT be deployed
 
     Args:
         entity: Entity name or list of names for lookup.
         action: Filter by action type (the verb).
-        role: Filter by kāraka role (agent/object/instrument/recipient/source/locus).
+        role: Filter by karaka role (agent/object/instrument/recipient/source/locus).
         memory_type: Filter by memory type (episodic/semantic/procedural).
-        mood: Filter by mood — "actual", "planned", "uncertain", or "normative".
-        negated: Filter — true=only negated memories, false=only positive.
+        mood: Filter by mood -- "actual", "planned", "uncertain", or "normative".
+        negated: Filter -- true=only negated memories, false=only positive.
         since: Only memories created after this ISO date string.
         before: Only memories created before this ISO date string.
         limit: Maximum results to return.
         min_strength: Minimum memory strength threshold.
     """
     mem = _get_memory()
-    # Parse ISO date strings
     since_dt = datetime.fromisoformat(since) if since else None
     before_dt = datetime.fromisoformat(before) if before else None
 
@@ -293,7 +306,10 @@ def recall(
 @mcp.tool()
 @_safe_tool
 def consolidate(entity: str | None = None) -> dict:
-    """Compress repeated episodic memories into semantic knowledge.
+    """Merge similar entities and compress repeated memories.
+
+    Phase 1: Merges semantically similar entity nodes (cosine >= 0.95).
+    Phase 2: Groups edges sharing the same vertex set into summaries.
 
     Call periodically to keep memory efficient.
 
@@ -310,8 +326,6 @@ def forget(
     older_than_days: float | None = None,
     min_strength: float | None = None,
     entity: str | None = None,
-    memory_type: str | None = None,
-    mood: str | None = None,
 ) -> dict:
     """Expire old or low-strength memories (soft delete).
 
@@ -319,8 +333,6 @@ def forget(
         older_than_days: Expire memories older than this many days.
         min_strength: Expire memories below this strength threshold.
         entity: Only forget memories involving this entity.
-        memory_type: Only forget memories of this type (episodic/semantic/procedural).
-        mood: Only forget memories of this mood (actual/planned/uncertain/normative).
     """
     mem = _get_memory()
     older_than = None
@@ -330,92 +342,7 @@ def forget(
         older_than=older_than,
         min_strength=min_strength,
         entity=entity,
-        memory_type=memory_type,
-        mood=mood,
     )
-
-
-@mcp.tool()
-@_safe_tool
-def connections(
-    entity: str,
-    max_hops: int = 2,
-    role: str | None = None,
-) -> dict:
-    """Explore an entity's neighborhood in the memory graph.
-
-    Args:
-        entity: The entity name to explore.
-        max_hops: Maximum traversal depth.
-        role: Filter to edges where any entity has this kāraka role.
-    """
-    mem = _get_memory()
-    return mem.connections(entity, max_hops=max_hops, role=role)
-
-
-@mcp.tool()
-@_safe_tool
-def who_knows_what() -> dict:
-    """Summary of what the memory system knows.
-
-    Returns entity counts, edge counts by type (including memory type breakdown),
-    top entities by degree, and provenance sources.
-    """
-    mem = _get_memory()
-    hb = mem.hb
-    stats = hb.stats()
-    sources = hb.sources()
-
-    # Find top entities by edge count
-    top_entities = [
-        {"entity": node.id, "type": node.type, "connections": degree} for node, degree in hb.top_nodes_by_degree(20)
-    ]
-
-    # Memory type and mood breakdown (exclude infrastructure edges)
-    all_edges = hb.edges(active=True)
-    memory_edges = [e for e in all_edges if e.type not in ("same_as", "consolidated")]
-    memory_types: dict[str, int] = {}
-    moods: dict[str, int] = {}
-    for e in memory_edges:
-        mt = e.properties.get("memory_type")
-        if mt:
-            memory_types[mt] = memory_types.get(mt, 0) + 1
-        m = e.properties.get("mood", "actual")
-        moods[m] = moods.get(m, 0) + 1
-
-    return {
-        "node_count": stats.node_count,
-        "edge_count": stats.edge_count,
-        "memory_count": len(memory_edges),
-        "nodes_by_type": stats.nodes_by_type,
-        "edges_by_type": stats.edges_by_type,
-        "memory_types": memory_types,
-        "moods": moods,
-        "sources": sources,
-        "top_entities": top_entities,
-    }
-
-
-@mcp.tool()
-@_safe_tool
-def resolve_contradiction(
-    new_edge_id: str,
-    old_edge_id: str,
-    resolution: str,
-) -> dict:
-    """Resolve a contradiction between two memories.
-
-    Call this after ``remember()`` returns contradictions. The agent decides
-    how to resolve the conflict.
-
-    Args:
-        new_edge_id: The edge ID of the newer (contradicting) memory.
-        old_edge_id: The edge ID of the older (existing) memory.
-        resolution: How to resolve — "supersede" (expire old and keep new),
-            "keep_both" (both remain active), or "keep_old" (expire new).
-    """
-    mem = _get_memory()
-    return mem.resolve_contradiction(new_edge_id, old_edge_id, cast(ResolutionAction, resolution))
 
 
 # ===================================================================
