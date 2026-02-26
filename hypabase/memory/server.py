@@ -106,8 +106,19 @@ mcp = FastMCP(
         "8 roles: :subject (who), :object (what), :recipient (to whom), "
         ":instrument (how), :origin (from where), :locus (where/when), "
         ":attribute (property), :value (its value).\n"
-        "Nest atoms for beliefs/causes: (believes :subject X :object (is ...))\n"
-        "Entity names are matched by normalized cache (exact match after lowercasing)."
+        "Nest atoms for beliefs/causes: (believes :subject X :object (is ...))\n\n"
+        "ENTITY NAMING -- this determines whether memories connect or fragment.\n"
+        'Same string after lowercasing = same entity. "Alice" and "alice" share one node.\n'
+        'Different strings = different entities. "Bob" and "Robert" create separate nodes '
+        "until consolidate() merges them.\n"
+        "Rules of thumb:\n"
+        "- Pick one canonical name per entity and reuse it across all memories.\n"
+        '- Use full descriptive names: "machine learning" not "ML", "JavaScript" not "JS".\n'
+        "- Check the resolved field in remember() responses. If an entity you expected to "
+        'be "existing" shows as "new", you likely have a naming inconsistency.\n'
+        "- When recall returns nothing, the most common cause is naming variance. "
+        "Try the exact name you used in remember(), or query by action/memory_type instead.\n"
+        "- Call consolidate() periodically to merge similar names via semantic similarity."
     ),
     lifespan=app_lifespan,
 )
@@ -276,6 +287,14 @@ def remember(
         (deployed :subject Alice :object API :locus Monday :tense past)
         (reviewed :subject Bob :object API :locus Tuesday :tense past)
 
+    ENTITY NAMING
+    -------------
+    Use the same name each time you refer to an entity. "Alice Smith" and
+    "alice smith" are the same entity (case-insensitive), but "Alice" and
+    "Alice Smith" are different entities until consolidate() merges them.
+    Check the "resolved" field in the response to see if entities matched
+    existing ones ("existing") or created new nodes ("new").
+
     Args:
         penman: One or more PENMAN atoms.
         source: Provenance source identifier.
@@ -322,6 +341,10 @@ def recall(
     - recall(entity=["Alice", "API"])                        -- memories involving both
     - recall(mood="planned")                                 -- all plans
     - recall(action="deploy", negated=true)                  -- what should NOT be deployed
+
+    If recall returns no results, the most common cause is a naming
+    variance (e.g., "Bob" vs "Robert"). Try the exact name used in
+    remember(), or try recall by action or memory_type instead.
 
     Args:
         entity: Entity name or list of names for lookup.
