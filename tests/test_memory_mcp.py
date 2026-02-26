@@ -252,18 +252,6 @@ class TestAgentOutputFormat:
         assert "source" not in m
         assert "confidence" not in m
 
-    def test_recall_detects_contradictions(self, memory_client):
-        """Opposite negation on same action + entities surfaces as contradiction."""
-        srv.remember(penman="(use :subject team :object Python)")
-        srv.remember(penman="(use :subject team :object Python :negated true)")
-        result = srv.recall(action="use")
-        assert "contradictions" in result
-        assert len(result["contradictions"]) >= 1
-        c = result["contradictions"][0]
-        assert "positive" in c
-        assert "negative" in c
-        assert "shared" in c
-
     def test_remember_output_format(self, memory_client):
         """remember() returns agent-friendly format with roles and resolved."""
         result = srv.remember(penman="(prefers :subject Alice :object Python :memory_type semantic)")

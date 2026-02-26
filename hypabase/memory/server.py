@@ -149,42 +149,6 @@ def _reliability_label(strength: float) -> str:
     return "faint"
 
 
-def _detect_contradictions(results: list[dict]) -> list[dict]:
-    """Find memories that contradict each other (same action + entities, opposite negation)."""
-    contradictions: list[dict] = []
-    for i, a in enumerate(results):
-        for b in results[i + 1 :]:
-            if a.get("action") != b.get("action"):
-                continue
-            a_neg = a.get("negated", False)
-            b_neg = b.get("negated", False)
-            if a_neg == b_neg:
-                continue
-            # Same action, opposite negation -- check entity overlap
-            a_flat = _flatten_role_entities(a.get("roles", {}))
-            b_flat = _flatten_role_entities(b.get("roles", {}))
-            shared = a_flat & b_flat
-            if len(shared) >= 1:
-                pos, neg = (a, b) if not a_neg else (b, a)
-                contradictions.append({
-                    "positive": pos["text"],
-                    "negative": neg["text"],
-                    "shared": sorted(shared),
-                })
-    return contradictions
-
-
-def _flatten_role_entities(roles: dict) -> set[str]:
-    """Extract all entity names from a roles dict, handling multi-valued roles."""
-    flat: set[str] = set()
-    for v in roles.values():
-        if isinstance(v, list):
-            flat.update(v)
-        else:
-            flat.add(v)
-    return flat
-
-
 def _format_remember(raw: dict) -> dict:
     """Reshape agent.py remember() output for agent consumption."""
     memories = []
@@ -238,14 +202,7 @@ def _format_recall(results: list[dict]) -> dict:
             m["negated"] = True
         memories.append(m)
 
-    result: dict[str, Any] = {"count": len(memories), "memories": memories}
-
-    # Surface contradictions the agent should be aware of
-    contradictions = _detect_contradictions(results)
-    if contradictions:
-        result["contradictions"] = contradictions
-
-    return result
+    return {"count": len(memories), "memories": memories}
 
 
 # ===================================================================
