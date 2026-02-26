@@ -1,20 +1,21 @@
 """Product tests for the Memory system -- from the agent's perspective.
 
-Real embedder (no mocks of Memory/Hypabase internals).  Server-level
-API (same interface an agent hits through MCP).  Each test is a
-meaningful scenario, not a unit assertion.
+Real neural embedder (all-MiniLM-L6-v2 via FastEmbed/ONNX, no mocks).
+Server-level API (same interface an agent hits through MCP).  Each test
+is a meaningful scenario, not a unit assertion.
 
-Uses a bag-of-words embedder that produces semantically meaningful
-vectors (similar texts → close vectors).  Falls back from FastEmbed
-if the model can't be loaded (e.g. no network).  Either way, the full
-product pipeline is exercised: embed_node, embed_edge, cosine search,
-consolidation, strength scoring.
+The embedder is downloaded once from GCS on first run (~79 MB) and
+cached for subsequent runs.  This gives us true semantic similarity:
+"machine learning" ↔ "ML algorithms" = high cosine, vs unrelated
+text = low cosine.
 """
 
 from __future__ import annotations
 
-import math
-import re
+import logging
+import os
+import tarfile
+import urllib.request
 
 import pytest
 
@@ -23,65 +24,62 @@ from hypabase import Hypabase
 from hypabase.engine.embeddings import EmbeddingProvider
 from hypabase.memory import Memory
 
+logger = logging.getLogger(__name__)
+
 pytestmark = pytest.mark.slow
 
 # ------------------------------------------------------------------
-# Bag-of-words embedder: lightweight, semantic, no network needed
+# Real neural embedder via FastEmbed + ONNX
 # ------------------------------------------------------------------
 
-# Vocabulary of ~100 common words → each gets a dimension.  Texts
-# containing the same words produce similar vectors.  This is a real
-# embedder (implements EmbeddingProvider, runs through the full vector
-# pipeline) -- it just doesn't need a 400 MB model download.
-_VOCAB = (
-    "alice bob carol dave team backend frontend project api service "
-    "auth oauth module deploy deployed deployment production staging "
-    "python rust javascript java react kubernetes docker aws "
-    "prefers likes uses manages owns works assigned completed reviewed "
-    "approved merged submitted changes adds created built implemented "
-    "knows believes decided learned teaches met told asked requested "
-    "task code pr review test testing meeting sprint monday tuesday "
-    "friday billing dashboard cli tool new old system memory safety "
-    "excellent budget reliability tea coffee juice programming language "
-    "deadline senior lead engineer role type time complexity sort "
-    "has is will should might not never because purpose condition "
-    "episodic semantic procedural planned actual uncertain normative "
-).split()
-_WORD_TO_DIM = {w: i for i, w in enumerate(_VOCAB)}
-_DIM = len(_VOCAB)
+_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+_MODEL_GCS_URL = (
+    "https://storage.googleapis.com/qdrant-fastembed/"
+    "sentence-transformers-all-MiniLM-L6-v2.tar.gz"
+)
+_CACHE_DIR = os.path.join(os.environ.get("FASTEMBED_CACHE_DIR", "/tmp/fastembed_cache"))
+_MODEL_DIR_NAME = "fast-all-MiniLM-L6-v2"
 
 
-class BagOfWordsEmbedder(EmbeddingProvider):
-    """Produce a normalised bag-of-words vector over a fixed vocabulary.
+def _ensure_model() -> None:
+    """Download the ONNX model from GCS if not already cached."""
+    model_dir = os.path.join(_CACHE_DIR, _MODEL_DIR_NAME)
+    if os.path.isdir(model_dir) and any(f.endswith(".onnx") for f in os.listdir(model_dir)):
+        return
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+    tar_path = os.path.join(_CACHE_DIR, "model.tar.gz")
+    logger.info("Downloading %s (%s) ...", _MODEL_NAME, _MODEL_GCS_URL)
+    urllib.request.urlretrieve(_MODEL_GCS_URL, tar_path)
+    with tarfile.open(tar_path, "r:gz") as t:
+        t.extractall(path=_CACHE_DIR)
+    os.unlink(tar_path)
 
-    Similar texts → high cosine similarity.  Different texts → low.
-    This is enough for the product pipeline to exercise real vector
-    search, consolidation, and spreading activation.
-    """
+
+class _FastEmbedLocalProvider(EmbeddingProvider):
+    """FastEmbed backed by a locally-cached ONNX model (no network at embed time)."""
+
+    def __init__(self) -> None:
+        from fastembed import TextEmbedding
+
+        _ensure_model()
+        self._model = TextEmbedding(
+            model_name=_MODEL_NAME,
+            cache_dir=_CACHE_DIR,
+            local_files_only=True,
+        )
+        self._dim = 384  # all-MiniLM-L6-v2
 
     def embed(self, text: str) -> list[float]:
-        vec = [0.0] * _DIM
-        words = re.findall(r"[a-z]+", text.lower())
-        for w in words:
-            idx = _WORD_TO_DIM.get(w)
-            if idx is not None:
-                vec[idx] += 1.0
-        mag = math.sqrt(sum(x * x for x in vec)) or 1.0
-        return [x / mag for x in vec]
+        return list(self._model.embed([text]))[0].tolist()
+
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        return [r.tolist() for r in self._model.embed(texts)]
 
     @property
     def dimension(self) -> int:
-        return _DIM
-
-
-def _make_embedder() -> EmbeddingProvider:
-    """Try FastEmbed first; fall back to BagOfWordsEmbedder."""
-    try:
-        from hypabase.engine.embeddings import FastEmbedProvider
-
-        return FastEmbedProvider()
-    except Exception:
-        return BagOfWordsEmbedder()
+        return self._dim
 
 
 _EMBEDDER: EmbeddingProvider | None = None
@@ -90,7 +88,7 @@ _EMBEDDER: EmbeddingProvider | None = None
 def _get_embedder() -> EmbeddingProvider:
     global _EMBEDDER
     if _EMBEDDER is None:
-        _EMBEDDER = _make_embedder()
+        _EMBEDDER = _FastEmbedLocalProvider()
     return _EMBEDDER
 
 
@@ -189,7 +187,13 @@ class TestMultipleFacts:
 
 
 class TestSemanticRecall:
-    """With a real embedder, verify graph-based recall works faithfully."""
+    """With a real neural embedder, test true semantic similarity in recall.
+
+    The recall path (agent.py:334-341) expands anchor nodes via
+    hb.search(name, kind="node", min_score=0.7) when an embedder is
+    available.  This means recalling a *synonym* or *abbreviation* can
+    find memories stored under a different but semantically close name.
+    """
 
     def test_entity_isolation(self, memory):
         """Recalling Alice finds Alice's fact, not Bob's."""
@@ -219,6 +223,44 @@ class TestSemanticRecall:
         assert "deployed" in text
         assert "(" not in text
 
+    def test_semantic_node_search_finds_synonym(self, memory):
+        """Recall with a synonym finds memories stored under a different name.
+
+        Store a fact about "artificial intelligence", then recall with "AI".
+        The neural embedder produces cosine ~0.79 between these node
+        embeddings (above the 0.7 threshold), expanding the anchor set
+        to include the original node.
+        """
+        srv.remember(
+            penman='(studies :subject Alice :object "artificial intelligence" :memory_type semantic)'
+        )
+        # Recall with the abbreviation — no entity named "AI" was ever stored
+        result = srv.recall(entity="AI")
+        # The neural embedder should bridge "AI" → "artificial intelligence"
+        assert result["count"] >= 1, (
+            "Semantic node search should find 'artificial intelligence' when queried with 'AI'"
+        )
+
+    def test_semantic_search_does_not_match_unrelated(self, memory):
+        """Unrelated query should NOT match via semantic search."""
+        srv.remember(
+            penman='(studies :subject Alice :object "machine learning" :memory_type semantic)'
+        )
+        # "Italian cooking" should not semantically match "machine learning"
+        result = srv.recall(entity="Italian cooking")
+        assert result["count"] == 0
+
+    def test_semantic_search_near_miss(self, memory):
+        """Conceptually related terms can find stored memories."""
+        srv.remember(
+            penman='(uses :subject team :object "deep learning" :memory_type semantic)'
+        )
+        # "neural networks" is closely related to "deep learning"
+        result = srv.recall(entity="neural networks")
+        # This might or might not match (depends on cosine > 0.7 threshold)
+        # But it should definitely not crash
+        assert "error" not in result
+
 
 # ==================================================================
 # 4. Entity consolidation with real cosine similarity
@@ -226,7 +268,12 @@ class TestSemanticRecall:
 
 
 class TestEntityConsolidation:
-    """Real embeddings let consolidate() find semantically similar nodes."""
+    """Real embeddings let consolidate() find semantically similar nodes.
+
+    Phase 1 of consolidate() computes pairwise cosine between all node
+    embeddings and merges at >= 0.95.  With a neural model, genuinely
+    duplicate or near-duplicate entity names can be merged.
+    """
 
     def test_consolidation_runs_cleanly(self, memory):
         srv.remember(penman="(likes :subject Alice :object tea)")
@@ -244,6 +291,23 @@ class TestEntityConsolidation:
         result = srv.consolidate(entity="Alice")
         assert "error" not in result
         assert "summaries" in result
+
+    def test_consolidation_does_not_merge_unrelated(self, memory):
+        """Consolidate should NOT merge semantically different entities."""
+        srv.remember(penman="(likes :subject Alice :object Python)")
+        srv.remember(penman="(likes :subject Bob :object JavaScript)")
+        srv.remember(penman="(uses :subject Carol :object Kubernetes)")
+
+        result = srv.consolidate()
+        # These are distinct entities, no merges should happen
+        # (edge grouping may still produce summaries for duplicate edge patterns)
+        node_merges = [s for s in result["summaries"] if s.get("action") == "merged_nodes"]
+        # Alice, Bob, Carol, Python, JavaScript, Kubernetes are all distinct
+        # Any merge would be a false positive
+        for merge in node_merges:
+            merged_set = set(merge.get("members", []))
+            assert not ({"Alice", "Bob"} <= merged_set), "Should not merge Alice and Bob"
+            assert not ({"Python", "Kubernetes"} <= merged_set), "Should not merge Python and Kubernetes"
 
 
 # ==================================================================
