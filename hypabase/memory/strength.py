@@ -38,6 +38,9 @@ def memory_strength(
     Returns:
         Strength score (non-negative float). Higher = stronger memory.
     """
+    confidence = max(0.0, min(1.0, confidence))
+    salience = max(0.0, salience)
+
     # Use memory-type-specific decay when caller hasn't overridden the default
     if memory_type is not None and decay == DEFAULT_DECAY_RATE:
         decay = MEMORY_DECAY_RATES.get(memory_type, DEFAULT_DECAY_RATE)

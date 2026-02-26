@@ -36,11 +36,10 @@ class TestHasNode:
         store.delete_node("A")
         assert store.has_node("A") is False
 
-    def test_empty_string_id(self):
-        """has_node works with empty string ID."""
-        store = HypergraphStore()
-        store.add_node(Node("", "entity"))
-        assert store.has_node("") is True
+    def test_empty_string_id_rejected(self):
+        """Empty string ID is rejected."""
+        with pytest.raises(ValueError, match="Node id must be non-empty"):
+            Node("", "entity")
 
     def test_special_characters_in_id(self):
         """has_node works with special characters."""

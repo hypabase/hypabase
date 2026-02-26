@@ -502,3 +502,73 @@ class TestSBAlignment:
         # Should find at least one result through the path
         assert len(results) >= 1
         mem.hb.close()
+
+
+class TestRecallEdgeCases:
+    def test_recall_role_without_entity_raises(self, tmp_db_path):
+        mem = Memory(path=tmp_db_path)
+        try:
+            with pytest.raises(ValueError, match="role filter requires entity"):
+                mem.recall(action="likes", role="subject")
+        finally:
+            mem.hb.close()
+
+    def test_recall_result_ordering_by_score_strength(self, tmp_db_path):
+        """Results are ordered by score * strength."""
+        mem = Memory(path=tmp_db_path)
+        try:
+            mem.remember("(likes :subject Alice :object Python :importance 0.1)")
+            mem.remember("(loves :subject Alice :object Python :importance 0.9)")
+            results = mem.recall(entity="Alice")
+            assert len(results) >= 2
+            # Verify ordering: score * strength should be descending
+            scores = [r["score"] * r["strength"] for r in results]
+            assert scores == sorted(scores, reverse=True)
+        finally:
+            mem.hb.close()
+
+
+class TestForgetEdgeCases:
+    def test_forget_older_than_and_min_strength_combined(self, tmp_db_path):
+        """Conjunction of older_than + min_strength filters works."""
+        mem = Memory(path=tmp_db_path)
+        try:
+            mem.remember("(met :subject Alice :object Bob)")
+            future = datetime.now(UTC) + timedelta(days=1)
+            # High strength threshold means all are weak enough to forget
+            # older_than in the future means all are old enough
+            result = mem.forget(older_than=future, min_strength=2.0)
+            assert result["expired_count"] >= 1
+        finally:
+            mem.hb.close()
+
+
+class TestEntityResolverEdgeCases:
+    def test_resolve_empty_string(self, tmp_db_path):
+        mem = Memory(path=tmp_db_path)
+        try:
+            resolver = mem._resolver
+            assert resolver.resolve("") == ""
+            assert resolver.resolve("   ") == "   "
+            assert not resolver.is_known("")
+            assert not resolver.is_known("   ")
+        finally:
+            mem.hb.close()
+
+
+class TestConsolidateEdgeSummaryType:
+    def test_edge_consolidation_has_type_field(self, tmp_db_path):
+        """Edge consolidation summaries have a 'type' field."""
+        mem = Memory(path=tmp_db_path)
+        try:
+            mem.remember("(likes :subject Alice :object Python)")
+            mem.remember("(prefers :subject Alice :object Python)")
+            mem.remember("(enjoys :subject Alice :object Python)")
+            summaries = mem.consolidate()
+            edge_summaries = [s for s in summaries if s.get("type") == "edge_consolidation"]
+            assert len(edge_summaries) >= 1
+            for s in edge_summaries:
+                assert "type" in s
+                assert s["type"] == "edge_consolidation"
+        finally:
+            mem.hb.close()

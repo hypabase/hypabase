@@ -55,6 +55,8 @@ class Node:
     def __post_init__(self) -> None:
         if not isinstance(self.id, str):
             raise TypeError(f"Node id must be a string, got: {type(self.id).__name__}")
+        if not self.id:
+            raise ValueError("Node id must be non-empty")
         if not isinstance(self.type, str):
             raise TypeError(f"Node type must be a string, got: {type(self.type).__name__}")
 
@@ -97,17 +99,11 @@ class Incidence:
         if self.node_id is not None and self.edge_ref_id is not None:
             raise ValueError("Incidence cannot have both node_id and edge_ref_id")
         if self.node_id is not None and not isinstance(self.node_id, str):
-            raise TypeError(
-                f"Incidence node_id must be a string, got: {type(self.node_id).__name__}"
-            )
+            raise TypeError(f"Incidence node_id must be a string, got: {type(self.node_id).__name__}")
         if self.edge_ref_id is not None and not isinstance(self.edge_ref_id, str):
-            raise TypeError(
-                f"Incidence edge_ref_id must be a string, got: {type(self.edge_ref_id).__name__}"
-            )
+            raise TypeError(f"Incidence edge_ref_id must be a string, got: {type(self.edge_ref_id).__name__}")
         if self.direction is not None and self.direction not in ("head", "tail"):
-            raise ValueError(
-                f"Incidence direction must be None, 'head', or 'tail', got: {self.direction!r}"
-            )
+            raise ValueError(f"Incidence direction must be None, 'head', or 'tail', got: {self.direction!r}")
 
 
 @dataclass
@@ -124,6 +120,9 @@ class Hyperedge:
         properties: Arbitrary key-value metadata
         source: Provenance - where this edge came from
         confidence: Quality score from 0.0 to 1.0
+        created_at: Unix timestamp when the edge was created (None = not yet timestamped)
+        valid_at: Unix timestamp from which the edge is considered valid
+        expired_at: Unix timestamp at which the edge was soft-deleted
 
     Raises:
         TypeError: If id or type is not a string
@@ -143,12 +142,12 @@ class Hyperedge:
     def __post_init__(self) -> None:
         if not isinstance(self.id, str):
             raise TypeError(f"Hyperedge id must be a string, got: {type(self.id).__name__}")
+        if not self.id:
+            raise ValueError("Edge id must be non-empty")
         if not isinstance(self.type, str):
             raise TypeError(f"Hyperedge type must be a string, got: {type(self.type).__name__}")
         if not 0.0 <= self.confidence <= 1.0:
-            raise ValueError(
-                f"Hyperedge confidence must be between 0.0 and 1.0, got: {self.confidence}"
-            )
+            raise ValueError(f"Hyperedge confidence must be between 0.0 and 1.0, got: {self.confidence}")
         if self.valid_at is not None and self.expired_at is not None and self.expired_at < self.valid_at:
             raise ValueError(f"expired_at ({self.expired_at}) cannot be before valid_at ({self.valid_at})")
 
@@ -170,20 +169,12 @@ class Hyperedge:
     @property
     def head_nodes(self) -> list[str]:
         """Node IDs marked as head/receivers/targets."""
-        return [
-            inc.node_id
-            for inc in self.incidences
-            if inc.direction == "head" and inc.node_id is not None
-        ]
+        return [inc.node_id for inc in self.incidences if inc.direction == "head" and inc.node_id is not None]
 
     @property
     def tail_nodes(self) -> list[str]:
         """Node IDs marked as tail/senders/sources."""
-        return [
-            inc.node_id
-            for inc in self.incidences
-            if inc.direction == "tail" and inc.node_id is not None
-        ]
+        return [inc.node_id for inc in self.incidences if inc.direction == "tail" and inc.node_id is not None]
 
     @property
     def is_directed(self) -> bool:
@@ -410,27 +401,15 @@ class HypergraphCore:
                     if not self._edges_by_type[existing.type]:
                         del self._edges_by_type[existing.type]
                 # Clean up old node-to-edge indexes
-                old_node_ids = {
-                    inc.node_id for inc in existing.incidences if inc.node_id is not None
-                }
-                new_node_ids = {
-                    inc.node_id for inc in edge.incidences if inc.node_id is not None
-                }
+                old_node_ids = {inc.node_id for inc in existing.incidences if inc.node_id is not None}
+                new_node_ids = {inc.node_id for inc in edge.incidences if inc.node_id is not None}
                 for node_id in old_node_ids - new_node_ids:
                     self._node_to_edges[node_id].discard(edge.id)
                     if not self._node_to_edges[node_id]:
                         del self._node_to_edges[node_id]
                 # Clean up old edge-ref indexes
-                old_edge_refs = {
-                    inc.edge_ref_id
-                    for inc in existing.incidences
-                    if inc.edge_ref_id is not None
-                }
-                new_edge_refs = {
-                    inc.edge_ref_id
-                    for inc in edge.incidences
-                    if inc.edge_ref_id is not None
-                }
+                old_edge_refs = {inc.edge_ref_id for inc in existing.incidences if inc.edge_ref_id is not None}
+                new_edge_refs = {inc.edge_ref_id for inc in edge.incidences if inc.edge_ref_id is not None}
                 for ref_id in old_edge_refs - new_edge_refs:
                     self._edge_to_edges[ref_id].discard(edge.id)
                     if not self._edge_to_edges[ref_id]:
@@ -619,22 +598,16 @@ class HypergraphCore:
         result = edges
         if at is not None:
             result = [
-                e for e in result
-                if (e.valid_at is None or e.valid_at <= at)
-                and (e.expired_at is None or e.expired_at > at)
+                e
+                for e in result
+                if (e.valid_at is None or e.valid_at <= at) and (e.expired_at is None or e.expired_at > at)
             ]
         elif not include_expired and active:
             result = [e for e in result if e.expired_at is None]
         if since is not None:
-            result = [
-                e for e in result
-                if e.created_at is None or e.created_at >= since
-            ]
+            result = [e for e in result if e.created_at is None or e.created_at >= since]
         if before is not None:
-            result = [
-                e for e in result
-                if e.created_at is None or e.created_at < before
-            ]
+            result = [e for e in result if e.created_at is None or e.created_at < before]
         return result
 
     # ========== Utility Methods ==========
@@ -698,11 +671,7 @@ class HypergraphCore:
             if edge_types is None:
                 return [edge for eid in edge_ids if (edge := self._edges.get(eid)) is not None]
 
-            return [
-                edge
-                for eid in edge_ids
-                if (edge := self._edges.get(eid)) is not None and edge.type in edge_types
-            ]
+            return [edge for eid in edge_ids if (edge := self._edges.get(eid)) is not None and edge.type in edge_types]
 
     def get_edge_node_tuples_of_node(
         self,
@@ -780,11 +749,7 @@ class HypergraphCore:
                 self._node_to_edges.items(),
                 key=lambda item: len(item[1]),
             )
-            return [
-                (self._nodes[node_id], len(edge_ids))
-                for node_id, edge_ids in top
-                if node_id in self._nodes
-            ]
+            return [(self._nodes[node_id], len(edge_ids)) for node_id, edge_ids in top if node_id in self._nodes]
 
     def edge_cardinality(self, edge_id: str) -> int:
         """Get the number of unique nodes in a hyperedge (excludes edge-ref members).
@@ -1100,10 +1065,7 @@ class HypergraphCore:
             List of paths, where each path is a list of hyperedges
         """
         if direction_mode not in ("undirected", "forward", "backward"):
-            raise ValueError(
-                f"direction_mode must be 'undirected', 'forward', or 'backward', "
-                f"got: {direction_mode!r}"
-            )
+            raise ValueError(f"direction_mode must be 'undirected', 'forward', or 'backward', got: {direction_mode!r}")
 
         with self._lock:
             # Get starting edges (those containing any start node)
@@ -1124,9 +1086,7 @@ class HypergraphCore:
 
             # BFS for paths (using deque for O(1) popleft)
             found_paths: list[list[Hyperedge]] = []
-            queue: deque[tuple[Hyperedge, list[Hyperedge]]] = deque(
-                (edge, [edge]) for edge in start_edges
-            )
+            queue: deque[tuple[Hyperedge, list[Hyperedge]]] = deque((edge, [edge]) for edge in start_edges)
             visited: set[str] = {edge.id for edge in start_edges}
 
             while queue and len(found_paths) < max_paths:
@@ -1190,13 +1150,9 @@ class HypergraphCore:
             if direction_mode == "undirected":
                 target_nodes = candidate.node_set
             elif direction_mode == "forward":
-                target_nodes = (
-                    set(candidate.tail_nodes) if candidate.tail_nodes else candidate.node_set
-                )
+                target_nodes = set(candidate.tail_nodes) if candidate.tail_nodes else candidate.node_set
             else:  # backward
-                target_nodes = (
-                    set(candidate.head_nodes) if candidate.head_nodes else candidate.node_set
-                )
+                target_nodes = set(candidate.head_nodes) if candidate.head_nodes else candidate.node_set
 
             # Check intersection constraint
             intersection_size = len(source_nodes & target_nodes)
@@ -1250,15 +1206,11 @@ class HypergraphCore:
                         missing_edge_refs.append(inc.edge_ref_id)
                 if missing_nodes:
                     orphaned_edges.append(edge_id)
-                    errors.append(
-                        f"Edge '{edge_id}' references non-existent nodes: {missing_nodes}"
-                    )
+                    errors.append(f"Edge '{edge_id}' references non-existent nodes: {missing_nodes}")
                 if missing_edge_refs:
                     if edge_id not in orphaned_edges:
                         orphaned_edges.append(edge_id)
-                    errors.append(
-                        f"Edge '{edge_id}' references non-existent edges: {missing_edge_refs}"
-                    )
+                    errors.append(f"Edge '{edge_id}' references non-existent edges: {missing_edge_refs}")
 
             # Verify node-to-edges index consistency
             for node_id, edge_ids in self._node_to_edges.items():
@@ -1266,41 +1218,28 @@ class HypergraphCore:
                     errors.append(f"Node-to-edges index contains non-existent node: '{node_id}'")
                 for edge_id in edge_ids:
                     if edge_id not in self._edges:
-                        errors.append(
-                            f"Node-to-edges index for '{node_id}' references "
-                            f"non-existent edge: '{edge_id}'"
-                        )
+                        errors.append(f"Node-to-edges index for '{node_id}' references non-existent edge: '{edge_id}'")
 
             # Verify edge-to-edges index consistency
             for ref_edge_id, referencing_edge_ids in self._edge_to_edges.items():
                 if ref_edge_id not in self._edges:
-                    errors.append(
-                        f"Edge-to-edges index contains non-existent "
-                        f"referenced edge: '{ref_edge_id}'"
-                    )
+                    errors.append(f"Edge-to-edges index contains non-existent referenced edge: '{ref_edge_id}'")
                 for edge_id in referencing_edge_ids:
                     if edge_id not in self._edges:
                         errors.append(
-                            f"Edge-to-edges index for '{ref_edge_id}' references "
-                            f"non-existent edge: '{edge_id}'"
+                            f"Edge-to-edges index for '{ref_edge_id}' references non-existent edge: '{edge_id}'"
                         )
 
             # Verify type indexes
             for node_type, node_ids in self._nodes_by_type.items():
                 for node_id in node_ids:
                     if node_id not in self._nodes:
-                        errors.append(
-                            f"Nodes-by-type index for '{node_type}' contains "
-                            f"non-existent node: '{node_id}'"
-                        )
+                        errors.append(f"Nodes-by-type index for '{node_type}' contains non-existent node: '{node_id}'")
 
             for edge_type, edge_ids in self._edges_by_type.items():
                 for edge_id in edge_ids:
                     if edge_id not in self._edges:
-                        errors.append(
-                            f"Edges-by-type index for '{edge_type}' contains "
-                            f"non-existent edge: '{edge_id}'"
-                        )
+                        errors.append(f"Edges-by-type index for '{edge_type}' contains non-existent edge: '{edge_id}'")
 
             return {
                 "valid": len(errors) == 0,
@@ -1330,12 +1269,8 @@ class HypergraphCore:
                         "type": e.type,
                         "incidences": [
                             {
-                                **( {"node_id": inc.node_id} if inc.node_id is not None else {}),
-                                **(
-                                    {"edge_ref_id": inc.edge_ref_id}
-                                    if inc.edge_ref_id is not None
-                                    else {}
-                                ),
+                                **({"node_id": inc.node_id} if inc.node_id is not None else {}),
+                                **({"edge_ref_id": inc.edge_ref_id} if inc.edge_ref_id is not None else {}),
                                 "direction": inc.direction,
                                 "properties": inc.properties,
                             }

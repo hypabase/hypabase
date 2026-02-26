@@ -69,9 +69,13 @@ class EntityResolver:
     def register(self, canonical: str, aliases: list[str]) -> None:
         """Register synonym mappings (called by consolidation)."""
         canon_norm = self._normalize(canonical)
+        if not canon_norm:
+            return
         self._cache[canon_norm] = canonical
         for alias in aliases:
-            self._cache[self._normalize(alias)] = canonical
+            alias_norm = self._normalize(alias)
+            if alias_norm:
+                self._cache[alias_norm] = canonical
 
     @staticmethod
     def _normalize(name: str) -> str:

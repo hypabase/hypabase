@@ -62,7 +62,7 @@ class Edge(BaseModel):
     arbitrary properties. Node order within the edge is preserved.
     """
 
-    id: str
+    id: str = Field(min_length=1)
     type: str
     incidences: list[Incidence] = Field(default_factory=list)
     directed: bool = False
@@ -74,6 +74,13 @@ class Edge(BaseModel):
     valid_at: datetime | None = None
     expired_at: datetime | None = None
 
+    @model_validator(mode="after")
+    def _check_temporal_ordering(self) -> Edge:
+        if self.valid_at is not None and self.expired_at is not None:
+            if self.expired_at < self.valid_at:
+                raise ValueError("expired_at must be >= valid_at")
+        return self
+
     @property
     def is_active(self) -> bool:
         """True if the edge has not been expired."""
@@ -81,9 +88,7 @@ class Edge(BaseModel):
 
     def __repr__(self) -> str:
         node_ids = [inc.node_id for inc in self.incidences if inc.node_id is not None]
-        return (
-            f"Edge({self.type!r}: {node_ids}, source={self.source!r}, confidence={self.confidence})"
-        )
+        return f"Edge({self.type!r}: {node_ids}, source={self.source!r}, confidence={self.confidence})"
 
     @property
     def node_ids(self) -> list[str]:

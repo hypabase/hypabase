@@ -62,7 +62,7 @@ class Memory:
             self._hb = hb.database(database)
         else:
             self._hb = Hypabase(path, database=database, embedder=embedder)
-        self._embedder = embedder or getattr(self._hb, "_embedder", None)
+        self._embedder = embedder or self._hb.embedder
         self._resolver = EntityResolver(self._hb)
         self._resolver.warm_cache()
 
@@ -162,7 +162,7 @@ class Memory:
                         try:
                             self._hb.embed_node(node_id, text=node_id)
                         except Exception:
-                            logger.warning("Failed to embed node %s", node_id)
+                            logger.warning("Failed to embed node %s", node_id, exc_info=True)
 
                 incidences.append(
                     {
@@ -202,7 +202,7 @@ class Memory:
             try:
                 self._hb.embed_edge(edge.id, embed_text)
             except Exception:
-                logger.warning("Failed to embed edge %s", edge.id)
+                logger.warning("Failed to embed edge %s", edge.id, exc_info=True)
 
         return {
             "edge_id": edge.id,
@@ -338,7 +338,9 @@ class Memory:
                         for s in similar:
                             anchor_nodes.add(s["ref_id"])
                     except Exception:
-                        logger.debug("Semantic node search failed for %r", name)
+                        logger.warning(
+                            "Semantic node search unavailable for %r, falling back to exact match", name, exc_info=True
+                        )
 
         # ---- Step 2: FIND -- collect candidate edges ----
         candidates: list[dict] = []
@@ -385,7 +387,7 @@ class Memory:
                                 }
                             )
             except Exception:
-                logger.debug("find_paths failed, falling back to neighborhood")
+                logger.warning("find_paths failed for anchors, falling back to neighborhood search", exc_info=True)
                 paths_found = False
 
             # If no paths found, fall back to edges containing ANY anchor
@@ -573,7 +575,7 @@ class Memory:
             try:
                 self._hb.embed_node(nid, text=nid)
             except Exception:
-                pass
+                logger.warning("Failed to embed node %r during consolidation, skipping", nid, exc_info=True)
 
         # Load embeddings
         if self._hb.storage is None:
@@ -688,6 +690,7 @@ class Memory:
                 )
                 summaries.append(
                     {
+                        "type": "edge_consolidation",
                         "edge_id": edge.id,
                         "entities": node_list,
                         "source_edge_ids": source_ids,
@@ -776,9 +779,9 @@ class Memory:
         """Extract a roles mapping {role: entity} from an edge's incidences."""
         roles: dict[str, str | list[str]] = {}
         for inc in edge.incidences:
-            nid = inc.node_id if hasattr(inc, "node_id") else getattr(inc, "node_id", None)
+            nid = inc.node_id
             if nid is not None:
-                role = inc.properties.get("role") if hasattr(inc, "properties") else None
+                role = inc.properties.get("role")
                 if role:
                     if role in roles:
                         existing = roles[role]
@@ -794,7 +797,7 @@ class Memory:
     def _edge_has_role(edge: Any, role: str) -> bool:
         """Check if any node in the edge has the given role."""
         for inc in edge.incidences:
-            inc_role = inc.properties.get("role") if hasattr(inc, "properties") else None
+            inc_role = inc.properties.get("role")
             if inc_role == role:
                 return True
         return False
@@ -803,9 +806,9 @@ class Memory:
     def _edge_has_role_for_seeds(edge: Any, role: str, seed_ids: set[str]) -> bool:
         """Check if any seed entity has the given role in the edge."""
         for inc in edge.incidences:
-            nid = inc.node_id if hasattr(inc, "node_id") else getattr(inc, "node_id", None)
+            nid = inc.node_id
             if nid in seed_ids:
-                inc_role = inc.properties.get("role") if hasattr(inc, "properties") else None
+                inc_role = inc.properties.get("role")
                 if inc_role == role:
                     return True
         return False

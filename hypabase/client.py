@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from collections import deque
@@ -27,6 +28,8 @@ from hypabase.engine.embeddings import EmbeddingProvider
 from hypabase.engine.persistence_engine import PersistenceEngine
 from hypabase.engine.storage import SQLiteStorage
 from hypabase.models import Edge, HypergraphStats, Incidence, Node, ValidationResult
+
+logger = logging.getLogger(__name__)
 
 # --- Conversion helpers: engine core types <-> pydantic models ---
 
@@ -324,7 +327,7 @@ class Hypabase:
             self._store.add_node(CoreNode(id=id, type=type, properties=properties, created_at=now, updated_at=now))
         core_node = self._store.get_node(id)
         if core_node is None:
-            raise RuntimeError(f"Node {id!r} should exist after add_node")
+            raise RuntimeError(f"Internal consistency error: Node {id!r} should exist after add_node")
         if self._storage:
             self._storage.write_node(self._current_ns, core_node)
         return _core_node_to_model(core_node)
@@ -525,7 +528,8 @@ class Hypabase:
                     raise ValueError("Each incidence must have either 'node_id' or 'edge_ref_id'.")
         else:
             # Original path: nodes list
-            assert nodes is not None  # for type checker
+            if nodes is None:
+                raise ValueError("Either 'nodes' or 'incidences' must be provided.")
             if len(nodes) < 2:
                 raise ValueError("A hyperedge must connect at least 2 nodes.")
             if any(not n for n in nodes):
@@ -571,7 +575,7 @@ class Hypabase:
         self._store.upsert_edge(core_edge)
         stored_edge = self._store.get_edge(edge_id)
         if stored_edge is None:
-            raise RuntimeError(f"Edge {edge_id!r} should exist after upsert_edge")
+            raise RuntimeError(f"Internal consistency error: Edge {edge_id!r} should exist after upsert_edge")
         if self._storage:
             self._storage.write_edge(self._current_ns, stored_edge)
         return _core_edge_to_model(stored_edge)
@@ -1115,7 +1119,7 @@ class Hypabase:
                     try:
                         self._reload_namespace()
                     except Exception:
-                        pass  # reload failure already emits RuntimeWarning
+                        logger.error("Failed to reload namespace after rollback", exc_info=True)
                 raise
             else:
                 if self._storage:
@@ -1265,7 +1269,7 @@ class Hypabase:
 
         # When kind and type are both specified, filter at the SQL level
         sql_type_filter = type if kind in ("node", "edge") and type is not None else None
-        raw_results = self._storage.search_vec(  # type: ignore[call-arg]
+        raw_results = self._storage.search_vec(
             self._current_ns,
             query_blob,
             limit=limit * 2,

@@ -29,6 +29,10 @@ class Atom:
     modifiers: dict[str, str | float | bool] = field(default_factory=dict)
     contexts: list[tuple[str, str | Atom]] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        if not self.verb or not self.verb.strip():
+            raise ValueError("Atom verb must be non-empty")
+
 
 # ---------------------------------------------------------------------------
 # Parse error

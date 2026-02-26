@@ -266,6 +266,7 @@ class PersistenceEngine(ABC):
         *,
         limit: int = 10,
         kind: str | None = None,
+        type_filter: str | None = None,
     ) -> list[dict]:
         """KNN search over embeddings.
 
@@ -274,6 +275,7 @@ class PersistenceEngine(ABC):
             query_embedding: Query vector as bytes.
             limit: Maximum results.
             kind: If provided, filter to this kind.
+            type_filter: If provided with kind, filter by entity/edge type.
 
         Returns:
             List of result dicts with scores.
@@ -301,9 +303,7 @@ class PersistenceEngine(ABC):
         ...
 
     @abstractmethod
-    def record_access_batch(
-        self, namespace: str, kind: str, ref_ids: list[str]
-    ) -> None:
+    def record_access_batch(self, namespace: str, kind: str, ref_ids: list[str]) -> None:
         """Record access events for multiple items in one call.
 
         Args:
@@ -314,9 +314,7 @@ class PersistenceEngine(ABC):
         ...
 
     @abstractmethod
-    def get_access_stats(
-        self, namespace: str, kind: str, ref_id: str
-    ) -> dict | None:
+    def get_access_stats(self, namespace: str, kind: str, ref_id: str) -> dict | None:
         """Get access stats for a specific item.
 
         Args:
@@ -330,9 +328,7 @@ class PersistenceEngine(ABC):
         ...
 
     @abstractmethod
-    def get_batch_access_stats(
-        self, namespace: str, kind: str, ref_ids: list[str]
-    ) -> dict[str, dict]:
+    def get_batch_access_stats(self, namespace: str, kind: str, ref_ids: list[str]) -> dict[str, dict]:
         """Get access stats for multiple items.
 
         Args:

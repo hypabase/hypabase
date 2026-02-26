@@ -90,3 +90,6 @@ PENMAN_TO_KARAKA: dict[str, str] = {
     "attribute": "attribute",
     "value": "value",
 }
+
+assert set(MEMORY_DECAY_RATES.keys()) == MEMORY_TYPES, "MEMORY_DECAY_RATES must cover all MemoryType values"
+assert set(ROLE_WEIGHTS.keys()) == KARAKA_ROLES, "ROLE_WEIGHTS must cover all KarakaRole values"

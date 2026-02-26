@@ -290,3 +290,52 @@ class TestAgentOutputFormat:
         a = result["activated"][0]
         assert "text" in a
         assert "shared" in a
+
+
+class TestSafeToolErrorPaths:
+    def test_safe_tool_validation_error(self, memory_client):
+        """ValueError returns validation category error."""
+        result = srv.recall()  # no args -> ValueError
+        assert result.get("error") is True
+        assert result["category"] == "validation"
+        assert result["type"] == "ValueError"
+
+    def test_safe_tool_generic_exception(self):
+        """Generic Exception returns internal category error."""
+        # Without initialized memory, RuntimeError is raised
+        result = srv.remember(penman="(met :subject Alice :object Bob)")
+        assert result.get("error") is True
+        assert result["category"] == "internal"
+
+
+class TestRecallValidation:
+    def test_invalid_role_returns_error(self, memory_client):
+        """Invalid role returns validation error with valid roles."""
+        result = srv.recall(entity="Alice", role="agent")
+        assert result.get("error") is True
+        assert "Unknown role" in result["message"]
+        assert "subject" in result["message"]
+
+    def test_invalid_memory_type_returns_error(self, memory_client):
+        """Invalid memory_type returns validation error."""
+        result = srv.recall(entity="Alice", memory_type="imaginary")
+        assert result.get("error") is True
+        assert "Unknown memory_type" in result["message"]
+
+    def test_invalid_mood_returns_error(self, memory_client):
+        """Invalid mood returns validation error."""
+        result = srv.recall(entity="Alice", mood="hypothetical")
+        assert result.get("error") is True
+        assert "Unknown mood" in result["message"]
+
+    def test_invalid_since_date_returns_error(self, memory_client):
+        """Invalid since date returns user-friendly error."""
+        result = srv.recall(entity="Alice", since="not-a-date")
+        assert result.get("error") is True
+        assert "Invalid 'since' date" in result["message"]
+
+    def test_invalid_before_date_returns_error(self, memory_client):
+        """Invalid before date returns user-friendly error."""
+        result = srv.recall(entity="Alice", before="not-a-date")
+        assert result.get("error") is True
+        assert "Invalid 'before' date" in result["message"]

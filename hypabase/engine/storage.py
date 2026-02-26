@@ -34,7 +34,7 @@ def _safe_json_loads(raw: str, context: str) -> dict[str, object]:
         result: dict[str, object] = json.loads(raw)
         return result
     except json.JSONDecodeError:
-        logger.warning("Corrupt JSON in %s, using empty dict: %s", context, raw[:100])
+        logger.error("Corrupt JSON in %s, using empty dict: %s", context, raw[:200])
         return {}
 
 

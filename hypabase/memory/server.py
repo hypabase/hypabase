@@ -1,4 +1,4 @@
-"""Hypabase Memory MCP server -- 4 tools for AI agent persistent memory."""
+"""Hypabase Memory MCP server -- remember, recall, consolidate, forget."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from mcp.server.fastmcp import FastMCP
 
 from hypabase.client import Hypabase
 from hypabase.memory import Memory
-from hypabase.memory.types import KarakaRole, MemoryType, Mood
+from hypabase.memory.types import KARAKA_ROLES, MEMORY_TYPES, MOODS, KarakaRole, MemoryType, Mood
 
 # All logging goes to stderr -- stdout is reserved for JSON-RPC
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -68,7 +68,7 @@ def _init_embedder() -> Any:
         try:
             return FastEmbedProvider()
         except Exception as exc:
-            logger.warning("Failed to initialize FastEmbed embedder: %s", exc)
+            logger.error("Failed to initialize FastEmbed embedder (semantic features disabled): %s", exc)
             return None
     else:
         logger.warning("Unknown HYPABASE_EMBEDDER value: %r, embedder disabled", embedder_type)
@@ -183,10 +183,7 @@ def _format_remember(raw: dict) -> dict:
 
     # Associative activation: what related memories were triggered?
     if raw.get("related"):
-        result["activated"] = [
-            {"text": r["text"], "shared": r["shared_entities"]}
-            for r in raw["related"]
-        ]
+        result["activated"] = [{"text": r["text"], "shared": r["shared_entities"]} for r in raw["related"]]
     return result
 
 
@@ -324,11 +321,11 @@ def recall(
     Use the dimensions you know:
     - entity: WHO/WHAT -- "Alice", "API", or ["Alice", "API"] for both
     - action: verb -- "assign", "decide", "deploy"
-    - role: karaka role -- agent/object/instrument/recipient/source/locus
+    - role: karaka role -- subject/object/instrument/recipient/source/locus/attribute/value
 
     Classification:
     - memory_type: "episodic" / "semantic" / "procedural"
-    - mood: "actual" / "planned" / "uncertain" / "normative"
+    - mood: "actual" / "planned" / "uncertain" / "normative" / "conditional"
     - negated: true = negations only
 
     Temporal:
@@ -349,9 +346,9 @@ def recall(
     Args:
         entity: Entity name or list of names for lookup.
         action: Filter by action type (the verb).
-        role: Filter by karaka role (agent/object/instrument/recipient/source/locus).
+        role: Filter by karaka role (subject/object/instrument/recipient/source/locus/attribute/value).
         memory_type: Filter by memory type (episodic/semantic/procedural).
-        mood: Filter by mood -- "actual", "planned", "uncertain", or "normative".
+        mood: Filter by mood -- "actual", "planned", "uncertain", "normative", or "conditional".
         negated: Filter -- true=only negated memories, false=only positive.
         since: Only memories created after this ISO date string.
         before: Only memories created before this ISO date string.
@@ -359,8 +356,28 @@ def recall(
         min_strength: Minimum memory strength threshold.
     """
     mem = _get_memory()
-    since_dt = datetime.fromisoformat(since) if since else None
-    before_dt = datetime.fromisoformat(before) if before else None
+
+    if role is not None and role not in KARAKA_ROLES:
+        raise ValueError(f"Unknown role {role!r}. Valid roles: {', '.join(sorted(KARAKA_ROLES))}")
+    if memory_type is not None and memory_type not in MEMORY_TYPES:
+        raise ValueError(f"Unknown memory_type {memory_type!r}. Valid types: {', '.join(sorted(MEMORY_TYPES))}")
+    if mood is not None and mood not in MOODS:
+        raise ValueError(f"Unknown mood {mood!r}. Valid moods: {', '.join(sorted(MOODS))}")
+
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since)
+        except ValueError:
+            raise ValueError(f"Invalid 'since' date: {since!r}. Use ISO-8601 format, e.g. '2024-01-15'")
+    else:
+        since_dt = None
+    if before:
+        try:
+            before_dt = datetime.fromisoformat(before)
+        except ValueError:
+            raise ValueError(f"Invalid 'before' date: {before!r}. Use ISO-8601 format, e.g. '2024-01-15'")
+    else:
+        before_dt = None
 
     results = mem.recall(
         entity=entity,
