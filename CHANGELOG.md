@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-27
+
+### Added
+
+- **Memory module** (`hypabase/memory/`) — structured AI agent memory using kāraka semantic roles, neuroscience-informed decay, entity resolution, spreading activation recall, and contradiction detection
+- **Memory MCP server** (`hypabase-memory`) — 4 tools: remember, recall, consolidate, forget. PENMAN notation input, provenance-tracked output.
+- **OpenClaw skill** (`skills/openclaw/`) — SKILL.md + claw.json for ClawHub discovery
+- **Embedding providers** — FastEmbed (default), OpenAI, SentenceTransformers via `HYPABASE_EMBEDDER` env var
+- **Vector search** — sqlite-vec backed KNN for semantic entity resolution and recall
+- **Temporal queries** — `valid_at` / `expired_at` timestamps, point-in-time queries, soft deletes
+- **Access tracking** — `access_log` table for memory strength scoring (recency, frequency, salience)
+- **CLI `mcp` command** — `hypabase mcp` starts the Memory MCP server
+
+### Changed
+
+- **MCP server replaced** — old 14-tool general-purpose server replaced with focused 4-tool memory server
+- **Python 3.11+ required** — dropped Python 3.10 (onnxruntime 1.24.2 has no 3.10 wheel)
+- **All deps are core** — `uv add hypabase` gives CLI, MCP, and embeddings. No optional extras for core functionality.
+
+### Fixed
+
+- Package docs updated to match actual MCP server API (4 tools, PENMAN notation)
+- `concepts.md` table count corrected (7 tables + 1 virtual table)
+- CLI reference updated (removed `[cli]` extra, added `mcp` command)
+
 ## [0.1.0] - 2026-02-13
 
 ### Added
