@@ -1,0 +1,31 @@
+/* Parchment — light mode (warm cream, paper-like) */
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: #f5f0e8;
+  --md-default-bg-color--light: #ebe5db;
+  --md-default-bg-color--lighter: #e1d9ce;
+  --md-default-bg-color--lightest: #f5f0e8;
+
+  --md-code-bg-color: #e8e2d8;
+
+  --md-footer-bg-color: #0b0e17;
+  --md-footer-bg-color--dark: #070a11;
+
+  --md-accent-fg-color: #6d28d9;
+  --md-typeset-a-color: #6d28d9;
+}
+
+/* Deep Space — dark mode (deep navy) */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0b0e17;
+  --md-default-bg-color--light: #0f1320;
+  --md-default-bg-color--lighter: #141929;
+  --md-default-bg-color--lightest: #1a2033;
+
+  --md-code-bg-color: #0e1220;
+
+  --md-footer-bg-color: #070a11;
+  --md-footer-bg-color--dark: #050710;
+
+  --md-accent-fg-color: #3b82f6;
+  --md-typeset-a-color: #3b82f6;
+}
