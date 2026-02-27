@@ -1,6 +1,6 @@
 {
   "name": "hypabase-memory",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Structured memory for AI agents — understands WHO did WHAT to WHOM using semantic roles (kāraka), with provenance, temporal support, and semantic search.",
   "author": "Hypabase",
   "license": "Apache-2.0",
