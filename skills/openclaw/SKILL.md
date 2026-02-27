@@ -4,9 +4,9 @@ metadata:
     emoji: "🧠"
     requires:
       env: []
-      bins: ["bash", "curl"]
+      bins: ["uvx"]
     primaryEnv: "HYPABASE_DB_PATH"
-    files: ["launcher.sh"]
+    files: []
 ---
 
 # Hypabase Memory
@@ -260,7 +260,21 @@ created_at              →    since / before filters
 
 ## Setup
 
-No installation required. The standalone binary is downloaded automatically on first use.
+Install the skill, then add the MCP server to your OpenClaw config (`~/.openclaw/openclaw.json`):
+
+```json
+{
+  "mcpServers": {
+    "hypabase-memory": {
+      "command": "uvx",
+      "args": ["--from", "hypabase", "hypabase-memory"],
+      "env": { "HYPABASE_DB_PATH": "hypabase.db" }
+    }
+  }
+}
+```
+
+`uvx` handles all Python dependencies automatically. Requires [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
 
 Environment variables:
 - `HYPABASE_DB_PATH` — SQLite database path (default: `hypabase.db`)

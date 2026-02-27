@@ -17,8 +17,8 @@
     "semantic-roles"
   ],
   "mcp": {
-    "command": "bash",
-    "args": ["{skillPath}/launcher.sh"],
+    "command": "uvx",
+    "args": ["--from", "hypabase", "hypabase-memory"],
     "env": {
       "HYPABASE_DB_PATH": "hypabase.db"
     }
@@ -29,5 +29,7 @@
     "consolidate",
     "forget"
   ],
-  "dependencies": {}
+  "dependencies": {
+    "bins": ["uvx"]
+  }
 }
