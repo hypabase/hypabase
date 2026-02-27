@@ -4,9 +4,9 @@ metadata:
     emoji: "🧠"
     requires:
       env: []
-      bins: ["hypabase-memory"]
+      bins: ["bash", "curl"]
     primaryEnv: "HYPABASE_DB_PATH"
-    files: []
+    files: ["launcher.sh"]
 ---
 
 # Hypabase Memory
@@ -260,13 +260,7 @@ created_at              →    since / before filters
 
 ## Setup
 
-Install hypabase:
-
-```bash
-pip install hypabase
-# or
-uv pip install hypabase
-```
+No installation required. The standalone binary is downloaded automatically on first use.
 
 Environment variables:
 - `HYPABASE_DB_PATH` — SQLite database path (default: `hypabase.db`)

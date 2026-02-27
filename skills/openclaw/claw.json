@@ -17,7 +17,8 @@
     "semantic-roles"
   ],
   "mcp": {
-    "command": "hypabase-memory",
+    "command": "bash",
+    "args": ["{skillPath}/launcher.sh"],
     "env": {
       "HYPABASE_DB_PATH": "hypabase.db"
     }
@@ -28,8 +29,5 @@
     "consolidate",
     "forget"
   ],
-  "dependencies": {
-    "python": ">=3.11",
-    "packages": ["hypabase"]
-  }
+  "dependencies": {}
 }

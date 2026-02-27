@@ -17,6 +17,52 @@ jobs:
       - run: uv run mypy hypabase/
       - run: uv run pytest -v --tb=short
 
+  build-binaries:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: darwin-arm64
+          - os: macos-13
+            target: darwin-x86_64
+          - os: ubuntu-latest
+            target: linux-x86_64
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.13
+      - run: uv sync --extra dev
+      - name: Build standalone binary
+        run: |
+          uv run pyinstaller \
+            --onefile \
+            --name hypabase-memory-${{ matrix.target }} \
+            --collect-all sqlite_vec \
+            --collect-all fastembed \
+            --collect-all onnxruntime \
+            --hidden-import hypabase.memory.server \
+            --hidden-import hypabase.memory.agent \
+            --hidden-import hypabase.memory.penman \
+            --hidden-import hypabase.memory.resolution \
+            --hidden-import hypabase.memory.strength \
+            --hidden-import hypabase.memory.types \
+            --hidden-import hypabase.engine.core \
+            --hidden-import hypabase.engine.storage \
+            --hidden-import hypabase.engine.embeddings \
+            --hidden-import hypabase.engine.vector \
+            --hidden-import hypabase.engine.persistence_engine \
+            --hidden-import hypabase.client \
+            --hidden-import hypabase.models \
+            scripts/entry_memory.py
+      - name: Upload binary to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/hypabase-memory-${{ matrix.target }}
+
   publish:
     needs: test
     runs-on: ubuntu-latest
