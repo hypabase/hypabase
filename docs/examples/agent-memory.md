@@ -1,8 +1,49 @@
 # Agent Memory
 
-Use Hypabase as persistent, structured memory for AI agents across sessions, with session-tagged provenance.
+Use Hypabase as persistent, structured memory for AI agents across sessions.
 
-## Multi-session persistence
+## Memory module (recommended)
+
+The Memory module provides a high-level API using PENMAN notation and semantic roles (karaka). This is the primary way agents interact with memory, and it powers the [MCP server](../guides/mcp.md).
+
+```python
+from hypabase import Hypabase
+from hypabase.memory import Memory
+
+hb = Hypabase("agent_memory.db")
+mem = Memory(hb=hb)
+
+# Store memories using PENMAN notation
+mem.remember(penman="""
+(assigned :subject Alice :object "API task" :recipient Bob
+ :instrument Jira :locus Monday :tense past :memory_type episodic)
+""")
+
+mem.remember(penman='(prefers :subject Alice :object Python :memory_type semantic)')
+
+# Recall everything about Alice
+results = mem.recall(entity="Alice")
+
+# Recall what Alice assigned
+results = mem.recall(entity="Alice", action="assign", role="subject")
+
+# Recall all plans
+results = mem.recall(mood="planned")
+
+# Merge naming variants (e.g., "Bob" and "Robert")
+mem.consolidate()
+
+# Clean up old memories
+mem.forget(older_than_days=90, min_strength=0.3)
+```
+
+The Memory module handles entity resolution, memory strength scoring, spreading activation recall, and contradiction detection automatically.
+
+## Low-level graph API
+
+For fine-grained control, you can use the Hypabase client directly with nodes, edges, and provenance context managers.
+
+### Multi-session persistence
 
 Hypabase persists to SQLite. An agent can write memory in one session and read it in the next:
 

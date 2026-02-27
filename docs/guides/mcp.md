@@ -101,47 +101,37 @@ Add to your Windsurf MCP configuration:
 
 ## Tools
 
-The server exposes 7 memory tools.
+The server exposes 4 memory tools.
 
 | Tool | Description |
 |------|-------------|
-| `remember` | Store a memory: ACTION + ENTITIES in ROLES |
+| `remember` | Store memories as PENMAN atoms: `(verb :role entity ...)` |
 | `recall` | Recall memories by entity, action, role, type, mood, or time |
+| `consolidate` | Merge similar entities and compress repeated memories |
 | `forget` | Expire old or low-strength memories (soft delete) |
-| `consolidate` | Compress repeated episodic memories into semantic knowledge |
-| `connections` | Explore an entity's neighborhood in the memory graph |
-| `who_knows_what` | Summary of what the memory system knows |
-| `resolve_contradiction` | Resolve a contradiction between two memories |
 
 ## Example workflow
 
 A typical agent session:
 
-1. **Remember** structured facts and events as they come up
+1. **Remember** structured facts and events using PENMAN notation
 2. **Recall** what the agent knows about an entity or topic
-3. **Resolve contradictions** when new information conflicts with existing memories
-4. **Consolidate** periodically to compress episodic clusters into semantic knowledge
-5. **Forget** old or low-strength memories to keep the graph efficient
+3. **Consolidate** periodically to merge naming variants and compress episodic clusters
+4. **Forget** old or low-strength memories to keep the graph efficient
 
 ```
-# Agent stores a memory
-remember(
-    action="assigned",
-    entities=[
-        {"name": "Alice", "type": "person", "role": "agent"},
-        {"name": "API task", "type": "task", "role": "object"},
-        {"name": "Bob", "type": "person", "role": "recipient"},
-    ],
-    memory_type="episodic",
-    importance=0.7
-)
+# Agent stores a memory using PENMAN notation
+remember(penman='(assigned :subject Alice :object "API task" :recipient Bob :memory_type episodic :importance 0.7)')
 
 # Later: agent recalls what it knows about Alice
 recall(entity="Alice")
 
-# Agent explores connections
-connections(entity="Alice")
+# What did Alice assign?
+recall(entity="Alice", action="assign", role="subject")
 
-# Summary of everything in memory
-who_knows_what()
+# Merge naming variants and compress repeated memories
+consolidate()
+
+# Clean up old memories
+forget(older_than_days=90, min_strength=0.3)
 ```

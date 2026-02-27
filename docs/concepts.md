@@ -109,13 +109,17 @@ The query answers: "does a relationship connect exactly these entities?"
 
 ## Storage
 
-Hypabase uses SQLite with WAL mode and foreign keys enabled. The database has four tables:
+Hypabase uses SQLite with WAL mode and foreign keys enabled. The database has seven tables plus one virtual table:
 
 | Table | Purpose |
 |-------|---------|
+| `meta` | Key-value config (schema version, settings) |
 | `nodes` | Entity storage (id, type, properties) |
 | `edges` | Relationship metadata (id, type, source, confidence, properties) |
 | `incidences` | Junction table linking edges to nodes with position and direction |
 | `vertex_set_index` | SHA-256 hash index for O(1) exact vertex-set lookup |
+| `embeddings` | Text and binary embedding data |
+| `access_log` | Memory access tracking (recency, frequency) |
+| `vec_embeddings` | Virtual table — sqlite-vec KNN index for vector search |
 
 The storage engine encapsulates all SQL. The client API never exposes raw queries.
