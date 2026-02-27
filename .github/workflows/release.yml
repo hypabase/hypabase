@@ -57,6 +57,13 @@ jobs:
             --hidden-import hypabase.engine.persistence_engine \
             --hidden-import hypabase.client \
             --hidden-import hypabase.models \
+            --hidden-import mcp.server \
+            --hidden-import mcp.server.fastmcp \
+            --hidden-import mcp.server.stdio \
+            --hidden-import mcp.types \
+            --hidden-import pydantic \
+            --hidden-import pydantic.fields \
+            --hidden-import pydantic.main \
             scripts/entry_memory.py
       - name: Upload binary to release
         uses: softprops/action-gh-release@v2

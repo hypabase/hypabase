@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Hypabase Memory MCP server — zero-dependency launcher.
+# Hypabase Memory MCP server launcher.
 # Downloads a pre-built standalone binary on first run, caches it, then executes.
 # All status output goes to stderr (stdout is reserved for MCP JSON-RPC).
 set -euo pipefail
@@ -29,15 +29,30 @@ if [ ! -x "$BINARY" ]; then
   URL="https://github.com/${REPO}/releases/download/v${VERSION}/${ASSET}"
   echo "hypabase-memory: downloading v${VERSION} (${OS}/${ARCH})..." >&2
   mkdir -p "$CACHE_DIR"
+  TMPFILE="$CACHE_DIR/.hypabase-memory-$VERSION.tmp"
+  trap 'rm -f "$TMPFILE"' EXIT
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$URL" -o "$BINARY"
+    curl -fsSL "$URL" -o "$TMPFILE" || {
+      echo "error: download failed from $URL" >&2
+      exit 1
+    }
   elif command -v wget >/dev/null 2>&1; then
-    wget -qO "$BINARY" "$URL"
+    wget -qO "$TMPFILE" "$URL" || {
+      echo "error: download failed from $URL" >&2
+      exit 1
+    }
   else
     echo "error: curl or wget required to download binary" >&2
     exit 1
   fi
-  chmod +x "$BINARY"
+  # Verify we got a real binary, not an error page
+  if [ ! -s "$TMPFILE" ]; then
+    echo "error: downloaded file is empty" >&2
+    exit 1
+  fi
+  chmod +x "$TMPFILE"
+  mv "$TMPFILE" "$BINARY"
+  trap - EXIT
   echo "hypabase-memory: cached at $BINARY" >&2
 fi
 
