@@ -44,7 +44,7 @@ hb.paths("dr_smith", "mercy_hospital")
 - **O(1) vertex-set lookup** — find edges by their exact node set
 - **Namespace isolation** — `.database("name")` for scoped views in a single file
 - **Provenance queries** — filter by `source` and `min_confidence`, summarize with `sources()`
-- **MCP server** — 14 tools + 2 resources for AI agent integration
+- **Memory MCP server** — 7 tools for AI agent persistent memory (remember, recall, forget, consolidate, connections, who_knows_what, resolve_contradiction)
 - **CLI** — `hypabase init`, `hypabase node`, `hypabase edge`, `hypabase query`
 
 ## Provenance
@@ -117,17 +117,17 @@ The broader idea has roots in AI research going back to OpenCog's [AtomSpace](ht
 
 ## MCP server
 
-Hypabase includes an MCP server with 14 tools and 2 resources so AI agents can use it as structured memory. Works with Claude Code, Claude Desktop, Cursor, Windsurf, and any MCP-compatible client.
+Hypabase includes a Memory MCP server with 7 tools so AI agents can use it as structured, persistent memory. Works with Claude Code, Claude Desktop, Cursor, Windsurf, and any MCP-compatible client.
 
 ```bash
-uv add hypabase[mcp]
-hypabase mcp
+uv add hypabase
+hypabase-memory
 ```
 
 ## CLI
 
 ```bash
-uv add hypabase[cli]
+uv add hypabase
 hypabase init
 hypabase node dr_smith --type doctor
 hypabase edge dr_smith patient_123 aspirin --type treatment --source clinical_records

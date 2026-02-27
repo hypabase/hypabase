@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+import time
 import uuid
 from collections import deque
 from collections.abc import Generator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 from hypabase.engine.core import (
     Hyperedge as CoreEdge,
@@ -21,14 +24,38 @@ from hypabase.engine.core import (
 from hypabase.engine.core import (
     Node as CoreNode,
 )
+from hypabase.engine.embeddings import EmbeddingProvider
+from hypabase.engine.persistence_engine import PersistenceEngine
 from hypabase.engine.storage import SQLiteStorage
 from hypabase.models import Edge, HypergraphStats, Incidence, Node, ValidationResult
+
+logger = logging.getLogger(__name__)
 
 # --- Conversion helpers: engine core types <-> pydantic models ---
 
 
+def _ts_to_dt(ts: float | None) -> datetime | None:
+    """Convert a Unix timestamp to a timezone-aware datetime, or None."""
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(ts, tz=UTC)
+
+
+def _dt_to_ts(dt: datetime | None) -> float | None:
+    """Convert a datetime to a Unix timestamp, or None."""
+    if dt is None:
+        return None
+    return dt.timestamp()
+
+
 def _core_node_to_model(cn: CoreNode) -> Node:
-    return Node(id=cn.id, type=cn.type, properties=cn.properties)
+    return Node(
+        id=cn.id,
+        type=cn.type,
+        properties=cn.properties,
+        created_at=_ts_to_dt(cn.created_at),
+        updated_at=_ts_to_dt(cn.updated_at),
+    )
 
 
 def _core_edge_to_model(ce: CoreEdge) -> Edge:
@@ -39,7 +66,7 @@ def _core_edge_to_model(ce: CoreEdge) -> Edge:
             Incidence(
                 node_id=inc.node_id,
                 edge_ref_id=inc.edge_ref_id,
-                direction=inc.direction,
+                direction=cast(Literal["head", "tail"] | None, inc.direction),
                 properties=inc.properties,
             )
             for inc in ce.incidences
@@ -48,6 +75,10 @@ def _core_edge_to_model(ce: CoreEdge) -> Edge:
         source=ce.source,
         confidence=ce.confidence,
         properties=ce.properties,
+        created_at=_ts_to_dt(ce.created_at),
+        updated_at=None,
+        valid_at=_ts_to_dt(ce.valid_at),
+        expired_at=_ts_to_dt(ce.expired_at),
     )
 
 
@@ -60,7 +91,7 @@ class Hypabase:
     Constructor patterns:
         - ``Hypabase()`` — in-memory, ephemeral (SQLite ``:memory:``)
         - ``Hypabase("file.db")`` — local persistent SQLite file
-        - ``Hypabase("https://...")`` — cloud backend (Phase 3, raises NotImplementedError)
+        - ``Hypabase("https://...")`` — cloud backend (not yet supported, raises NotImplementedError)
 
     Example:
         ```python
@@ -79,9 +110,12 @@ class Hypabase:
         *,
         key: str | None = None,
         database: str = "default",
+        embedder: EmbeddingProvider | None = None,
+        auto_embed: bool = False,
         # Private: shared state for namespace views
-        _storage: SQLiteStorage | None = ...,  # type: ignore[assignment]
+        _storage: PersistenceEngine | None = ...,  # type: ignore[assignment]
         _stores: dict[str, HypergraphCore] | None = None,
+        _embedder: EmbeddingProvider | None = ...,  # type: ignore[assignment]
     ) -> None:
         path_str = str(path) if path else None
 
@@ -99,6 +133,7 @@ class Hypabase:
             self._storage = _storage
             self._stores = _stores or {"default": HypergraphCore()}
             self._current_ns = database
+            self._embedder = _embedder if _embedder is not ... else embedder
             # Ensure the namespace store exists
             if self._current_ns not in self._stores:
                 self._stores[self._current_ns] = HypergraphCore()
@@ -106,6 +141,7 @@ class Hypabase:
             # Normal construction
             self._path = path_str
             self._current_ns = database
+            self._embedder = embedder
             if self._path:
                 self._storage = SQLiteStorage(self._path)
                 self._stores = self._storage.load()
@@ -118,12 +154,27 @@ class Hypabase:
 
         self._context_source: str | None = None
         self._context_confidence: float | None = None
-        self._batch_depth: int = 0
+        self._auto_embed: bool = auto_embed
 
     @property
     def _store(self) -> HypergraphCore:
         """Resolve the current namespace's store."""
         return self._stores[self._current_ns]
+
+    @property
+    def storage(self) -> PersistenceEngine | None:
+        """The underlying storage adapter, or None if in-memory only."""
+        return self._storage
+
+    @property
+    def current_namespace(self) -> str:
+        """The active namespace name."""
+        return self._current_ns
+
+    @property
+    def embedder(self) -> Any:
+        """The configured embedding provider, or None."""
+        return self._embedder
 
     def close(self) -> None:
         """Close the database connection.
@@ -138,18 +189,14 @@ class Hypabase:
                 self._storage.close()
 
     def save(self) -> None:
-        """Persist current state to SQLite.
+        """Persist all namespaces to SQLite as a full snapshot.
 
-        No-op for in-memory instances. Normally called automatically
-        after each mutation; use this for explicit manual saves.
+        No-op for in-memory instances. Individual mutations auto-commit
+        incrementally; this method performs a full overwrite of all
+        namespace data.
         """
         if self._storage:
             self._storage.save(self._stores)
-
-    def _auto_save(self) -> None:
-        """Persist to SQLite if file-backed and not inside a batch."""
-        if self._storage and self._batch_depth == 0:
-            self._storage.save_namespace(self._current_ns, self._store)
 
     def __enter__(self) -> Hypabase:
         return self
@@ -187,6 +234,7 @@ class Hypabase:
             database=name,
             _storage=self._storage,
             _stores=self._stores,
+            _embedder=self._embedder,
         )
 
     def databases(self) -> list[str]:
@@ -268,16 +316,20 @@ class Hypabase:
         """
         if not id:
             raise ValueError("Node ID must be a non-empty string")
+        now = time.time()
         existing = self._store.get_node(id)
         if existing:
             existing.type = type
             if properties:
                 existing.properties.update(properties)
+            existing.updated_at = now
         else:
-            self._store.add_node(CoreNode(id=id, type=type, properties=properties))
+            self._store.add_node(CoreNode(id=id, type=type, properties=properties, created_at=now, updated_at=now))
         core_node = self._store.get_node(id)
-        assert core_node is not None, f"Node {id!r} should exist after add_node"
-        self._auto_save()
+        if core_node is None:
+            raise RuntimeError(f"Internal consistency error: Node {id!r} should exist after add_node")
+        if self._storage:
+            self._storage.write_node(self._current_ns, core_node)
         return _core_node_to_model(core_node)
 
     def get_node(self, id: str) -> Node | None:
@@ -343,11 +395,16 @@ class Hypabase:
             ``True`` if the node existed and was deleted, ``False`` otherwise.
         """
         if cascade:
+            edge_ids = list(self._store._node_to_edges.get(id, set()))
             deleted, _ = self._store.delete_node_cascade(id)
-            self._auto_save()
+            if deleted and self._storage:
+                for eid in edge_ids:
+                    self._storage.remove_edge(self._current_ns, eid)
+                self._storage.remove_node(self._current_ns, id)
             return deleted
         result = self._store.delete_node(id)
-        self._auto_save()
+        if result and self._storage:
+            self._storage.remove_node(self._current_ns, id)
         return result
 
     def delete_node_cascade(self, node_id: str) -> tuple[bool, int]:
@@ -362,15 +419,19 @@ class Hypabase:
         Returns:
             Tuple of ``(node_was_deleted, number_of_edges_deleted)``.
         """
+        edge_ids = list(self._store._node_to_edges.get(node_id, set()))
         result = self._store.delete_node_cascade(node_id)
-        self._auto_save()
+        if result[0] and self._storage:
+            for eid in edge_ids:
+                self._storage.remove_edge(self._current_ns, eid)
+            self._storage.remove_node(self._current_ns, node_id)
         return result
 
     # --- Edges ---
 
     def edge(
         self,
-        nodes: list[str],
+        nodes: list[str] | None = None,
         *,
         type: str,
         directed: bool = False,
@@ -378,11 +439,23 @@ class Hypabase:
         confidence: float | None = None,
         properties: dict[str, Any] | None = None,
         id: str | None = None,
+        valid_at: datetime | None = None,
+        roles: list[str | None] | None = None,
+        incidences: list[dict[str, Any]] | None = None,
     ) -> Edge:
         """Create a hyperedge linking two or more nodes in one relationship.
 
         Nodes are auto-created if they don't exist. Provenance values
         fall back to the active ``context()`` block if not set explicitly.
+
+        There are two ways to specify participants:
+
+        1. **nodes** (simple): A list of node IDs. Use ``roles`` for kāraka.
+        2. **incidences** (advanced): A list of dicts, each with ``node_id``
+           or ``edge_ref_id``, plus optional ``properties``. Supports mixed
+           node and edge-ref incidences (metagraph patterns).
+
+        Exactly one of ``nodes`` or ``incidences`` must be provided.
 
         Args:
             nodes: Node IDs to connect. Must contain at least 2.
@@ -392,12 +465,17 @@ class Hypabase:
             confidence: Confidence score 0.0-1.0. Falls back to context or ``1.0``.
             properties: Arbitrary key-value metadata.
             id: Optional edge ID. Auto-generated UUID if omitted.
+            roles: Optional per-node semantic roles (kāraka). Only valid with
+                ``nodes``. ``len(roles)`` must equal ``len(nodes)``.
+            incidences: List of incidence dicts. Each dict must have either
+                ``node_id`` (str) or ``edge_ref_id`` (str), and may have
+                ``properties`` (dict). Cannot be used with ``nodes``/``roles``.
 
         Returns:
             The created Edge.
 
         Raises:
-            ValueError: If fewer than 2 nodes or any node ID is empty.
+            ValueError: If arguments are invalid.
 
         Example:
             ```python
@@ -406,13 +484,14 @@ class Hypabase:
                 type="treatment",
                 source="clinical_records",
                 confidence=0.95,
+                roles=["subject", "object", "instrument"],
             )
             ```
         """
-        if len(nodes) < 2:
-            raise ValueError("A hyperedge must connect at least 2 nodes.")
-        if any(not n for n in nodes):
-            raise ValueError("Node IDs must be non-empty strings")
+        if nodes is not None and incidences is not None:
+            raise ValueError("Provide either 'nodes' or 'incidences', not both.")
+        if nodes is None and incidences is None:
+            raise ValueError("Provide either 'nodes' or 'incidences'.")
 
         edge_id = id or str(uuid.uuid4())
         resolved_source = source or self._context_source or "unknown"
@@ -422,35 +501,83 @@ class Hypabase:
             else (self._context_confidence if self._context_confidence is not None else 1.0)
         )
 
-        # Auto-create nodes
-        for node_id in nodes:
-            if not self._store.get_node(node_id):
-                self._store.add_node(CoreNode(id=node_id, type="unknown"))
+        if incidences is not None:
+            # Advanced path: mixed node_id + edge_ref_id incidences
+            if roles is not None:
+                raise ValueError("'roles' cannot be used with 'incidences'. Put roles in incidence properties.")
+            if len(incidences) < 2:
+                raise ValueError("A hyperedge must have at least 2 incidences.")
 
-        # Build incidences — for directed edges, first node is tail, last is head
-        if directed:
-            incidences = [
-                CoreIncidence(node_id=nodes[0], direction="tail"),
-                *[CoreIncidence(node_id=n) for n in nodes[1:-1]],
-                CoreIncidence(node_id=nodes[-1], direction="head"),
-            ]
+            core_incidences: list[CoreIncidence] = []
+            for inc_dict in incidences:
+                nid = inc_dict.get("node_id")
+                erid = inc_dict.get("edge_ref_id")
+                inc_props = dict(inc_dict.get("properties", {}))
+
+                if nid is not None:
+                    # Auto-create node if needed
+                    if not self._store.get_node(nid):
+                        new_node = CoreNode(id=nid, type="unknown")
+                        self._store.add_node(new_node)
+                        if self._storage:
+                            self._storage.write_node(self._current_ns, new_node)
+                    core_incidences.append(CoreIncidence(node_id=nid, properties=inc_props))
+                elif erid is not None:
+                    core_incidences.append(CoreIncidence(edge_ref_id=erid, properties=inc_props))
+                else:
+                    raise ValueError("Each incidence must have either 'node_id' or 'edge_ref_id'.")
         else:
-            incidences = [CoreIncidence(node_id=n) for n in nodes]
+            # Original path: nodes list
+            if nodes is None:
+                raise ValueError("Either 'nodes' or 'incidences' must be provided.")
+            if len(nodes) < 2:
+                raise ValueError("A hyperedge must connect at least 2 nodes.")
+            if any(not n for n in nodes):
+                raise ValueError("Node IDs must be non-empty strings")
+            if roles is not None and len(roles) != len(nodes):
+                raise ValueError(f"roles length ({len(roles)}) must match nodes length ({len(nodes)})")
+
+            # Auto-create nodes
+            for node_id in nodes:
+                if not self._store.get_node(node_id):
+                    new_node = CoreNode(id=node_id, type="unknown")
+                    self._store.add_node(new_node)
+                    if self._storage:
+                        self._storage.write_node(self._current_ns, new_node)
+
+            # Build incidences — for directed edges, first node is tail, last is head
+            def _inc_props(idx: int) -> dict[str, Any]:
+                if roles is not None and roles[idx] is not None:
+                    return {"role": roles[idx]}
+                return {}
+
+            if directed:
+                core_incidences = [
+                    CoreIncidence(node_id=nodes[0], direction="tail", properties=_inc_props(0)),
+                    *[CoreIncidence(node_id=nodes[i], properties=_inc_props(i)) for i in range(1, len(nodes) - 1)],
+                    CoreIncidence(node_id=nodes[-1], direction="head", properties=_inc_props(len(nodes) - 1)),
+                ]
+            else:
+                core_incidences = [CoreIncidence(node_id=n, properties=_inc_props(i)) for i, n in enumerate(nodes)]
 
         core_edge = CoreEdge(
             id=edge_id,
             type=type,
-            incidences=incidences,
+            incidences=core_incidences,
             properties=properties or {},
             source=resolved_source,
             confidence=resolved_confidence,
+            created_at=time.time(),
+            valid_at=_dt_to_ts(valid_at),
         )
 
         # Use upsert to handle existing edge IDs
         self._store.upsert_edge(core_edge)
         stored_edge = self._store.get_edge(edge_id)
-        assert stored_edge is not None, f"Edge {edge_id!r} should exist after upsert_edge"
-        self._auto_save()
+        if stored_edge is None:
+            raise RuntimeError(f"Internal consistency error: Edge {edge_id!r} should exist after upsert_edge")
+        if self._storage:
+            self._storage.write_edge(self._current_ns, stored_edge)
         return _core_edge_to_model(stored_edge)
 
     def get_edge(self, id: str) -> Edge | None:
@@ -473,8 +600,13 @@ class Hypabase:
         match_all: bool = False,
         source: str | None = None,
         min_confidence: float | None = None,
+        active: bool = True,
+        include_expired: bool = False,
+        since: datetime | None = None,
+        before: datetime | None = None,
+        at: datetime | None = None,
     ) -> list[Edge]:
-        """Query edges by contained nodes, type, source, and/or confidence.
+        """Query edges by contained nodes, type, source, confidence, and temporal criteria.
 
         All filters are combined with AND logic.
 
@@ -485,6 +617,11 @@ class Hypabase:
                 ``containing``. If ``False`` (default), any match suffices.
             source: Filter to edges from this provenance source.
             min_confidence: Filter to edges with confidence >= this value.
+            active: If ``True`` (default), only return non-expired edges.
+            include_expired: If ``True``, include expired edges (overrides ``active``).
+            since: Only edges created at or after this time.
+            before: Only edges created before this time.
+            at: Point-in-time query: edges that were valid at this moment.
 
         Returns:
             List of matching edges.
@@ -510,6 +647,16 @@ class Hypabase:
             core_edges = [e for e in core_edges if e.source == source]
         if min_confidence is not None:
             core_edges = [e for e in core_edges if e.confidence >= min_confidence]
+
+        # Temporal filtering
+        core_edges = self._store.filter_temporal(
+            core_edges,
+            active=active,
+            include_expired=include_expired,
+            since=_dt_to_ts(since),
+            before=_dt_to_ts(before),
+            at=_dt_to_ts(at),
+        )
 
         return [_core_edge_to_model(e) for e in core_edges]
 
@@ -569,7 +716,7 @@ class Hypabase:
     def edges_by_vertex_set(self, nodes: list[str]) -> list[Edge]:
         """O(1) lookup: find edges with exactly this set of nodes.
 
-        Uses the SHA-256 vertex-set hash index for constant-time lookup.
+        Uses the in-memory vertex-set hash index for constant-time lookup.
         Order of ``nodes`` does not matter.
 
         Args:
@@ -591,8 +738,88 @@ class Hypabase:
             ``True`` if the edge existed and was deleted, ``False`` otherwise.
         """
         result = self._store.delete_edge(id)
-        self._auto_save()
+        if result and self._storage:
+            self._storage.remove_edge(self._current_ns, id)
         return result
+
+    def expire_edge(self, id: str) -> Edge | None:
+        """Expire an edge, marking it as no longer active.
+
+        The edge is not deleted — it remains queryable via ``include_expired=True``.
+
+        Args:
+            id: The edge ID to expire.
+
+        Returns:
+            The expired Edge, or ``None`` if not found.
+        """
+        if not self._store.expire_edge(id):
+            return None
+        ce = self._store.get_edge(id)
+        if ce is None:
+            raise RuntimeError(f"Edge {id!r} should exist after expire_edge")
+        if self._storage:
+            self._storage.update_edge(self._current_ns, ce)
+        return _core_edge_to_model(ce)
+
+    def supersede_edge(
+        self,
+        old_edge_id: str,
+        nodes: list[str],
+        *,
+        type: str,
+        source: str | None = None,
+        confidence: float | None = None,
+        properties: dict[str, Any] | None = None,
+        valid_at: datetime | None = None,
+    ) -> tuple[Edge, Edge] | None:
+        """Expire an edge and create a replacement atomically.
+
+        Args:
+            old_edge_id: The edge to expire.
+            nodes: Node IDs for the new edge.
+            type: Edge type for the new edge.
+            source: Provenance source for the new edge.
+            confidence: Confidence for the new edge.
+            properties: Properties for the new edge.
+            valid_at: When the new fact became true.
+
+        Returns:
+            Tuple of (expired_edge, new_edge), or ``None`` if old edge not found.
+        """
+        if len(nodes) < 2:
+            raise ValueError("A hyperedge must connect at least 2 nodes.")
+        for node_id in nodes:
+            if not self._store.get_node(node_id):
+                new_node = CoreNode(id=node_id, type="unknown")
+                self._store.add_node(new_node)
+                if self._storage:
+                    self._storage.write_node(self._current_ns, new_node)
+
+        resolved_source = source or self._context_source or "unknown"
+        resolved_confidence = (
+            confidence
+            if confidence is not None
+            else (self._context_confidence if self._context_confidence is not None else 1.0)
+        )
+
+        incidences = [CoreIncidence(node_id=n) for n in nodes]
+        result = self._store.supersede_edge(
+            old_edge_id,
+            type=type,
+            incidences=incidences,
+            properties=properties or {},
+            source=resolved_source,
+            confidence=resolved_confidence,
+            valid_at=_dt_to_ts(valid_at),
+        )
+        if result is None:
+            return None
+        old_core, new_core = result
+        if self._storage:
+            self._storage.update_edge(self._current_ns, old_core)
+            self._storage.write_edge(self._current_ns, new_core)
+        return (_core_edge_to_model(old_core), _core_edge_to_model(new_core))
 
     # --- Traversal ---
 
@@ -613,11 +840,7 @@ class Hypabase:
             edge_types=edge_types,
             exclude_self=True,
         )
-        return [
-            _core_node_to_model(n)
-            for nid in neighbor_ids
-            if (n := self._store.get_node(nid)) is not None
-        ]
+        return [_core_node_to_model(n) for nid in neighbor_ids if (n := self._store.get_node(nid)) is not None]
 
     def paths(
         self,
@@ -726,6 +949,17 @@ class Hypabase:
         """
         return self._store.node_degree(node_id, edge_types=edge_types)
 
+    def top_nodes_by_degree(self, k: int = 20) -> list[tuple[Node, int]]:
+        """Return the top-k most connected nodes.
+
+        Args:
+            k: Number of top nodes to return (default 20).
+
+        Returns:
+            List of (Node, degree) tuples, most connected first.
+        """
+        return [(_core_node_to_model(cn), degree) for cn, degree in self._store.top_nodes_by_degree(k)]
+
     def edge_cardinality(self, edge_id: str) -> int:
         """Count how many distinct nodes an edge contains.
 
@@ -832,7 +1066,8 @@ class Hypabase:
             confidence=resolved_confidence,
             merge_fn=merge_fn,
         )
-        self._auto_save()
+        if self._storage:
+            self._storage.write_edge(self._current_ns, core_edge)
         return _core_edge_to_model(core_edge)
 
     def edges_of_node(
@@ -850,22 +1085,20 @@ class Hypabase:
         Returns:
             List of edges containing this node.
         """
-        return [
-            _core_edge_to_model(e)
-            for e in self._store.get_edges_of_node(node_id, edge_types=edge_types)
-        ]
+        return [_core_edge_to_model(e) for e in self._store.get_edges_of_node(node_id, edge_types=edge_types)]
 
     @contextmanager
     def batch(self) -> Generator[None, None, None]:
-        """Group write operations and save them all at once.
+        """Group write operations in an atomic transaction.
 
-        Reduces disk I/O for bulk inserts. Batches can nest; only the
-        outermost batch triggers a save.
+        On success the SQLite transaction commits and in-memory state is kept.
+        On any failure, SQLite rolls back and in-memory state is reloaded
+        from disk to restore consistency.
 
-        Note:
-            Provides batched persistence, **not** transaction rollback. If an
-            exception occurs mid-batch, partial in-memory changes remain and
-            are persisted when the batch exits.
+        In-memory-only instances (no storage) are unaffected — partial
+        changes remain since there is no durable state to reload from.
+
+        Batches can nest; only the outermost batch triggers commit/rollback.
 
         Example:
             ```python
@@ -876,13 +1109,198 @@ class Hypabase:
             ```
         """
         with self._store.batch():
-            self._batch_depth += 1
+            if self._storage:
+                self._storage.begin()
             try:
                 yield
-            finally:
-                self._batch_depth -= 1
-                if self._batch_depth == 0:
-                    self._auto_save()
+            except BaseException:
+                if self._storage:
+                    self._storage.rollback()
+                    try:
+                        self._reload_namespace()
+                    except Exception:
+                        logger.error("Failed to reload namespace after rollback", exc_info=True)
+                raise
+            else:
+                if self._storage:
+                    try:
+                        self._storage.commit()
+                    except BaseException:
+                        self._storage.rollback()
+                        self._reload_namespace()
+                        raise
+
+    def _reload_namespace(self) -> None:
+        """Reload the current namespace from SQLite after a failed batch."""
+        if self._storage:
+            try:
+                self._stores[self._current_ns] = self._storage.load_namespace(self._current_ns)
+            except Exception as reload_err:
+                import warnings
+
+                warnings.warn(
+                    f"Failed to reload namespace '{self._current_ns}' after rollback: "
+                    f"{reload_err!r}. In-memory state may be inconsistent. "
+                    f"Close and reopen the database to restore consistency.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+
+    def rebuild_search_index(self) -> int:
+        """Rebuild the vector search index from stored embeddings.
+
+        Use this if search results seem incorrect or after recovering
+        from a storage error. No-op for in-memory instances.
+
+        Returns:
+            Number of embeddings re-indexed.
+        """
+        if self._storage is None:
+            return 0
+        rebuild = getattr(self._storage, "rebuild_vec_index", None)
+        if rebuild is None:
+            return 0
+        result: int = rebuild()
+        return result
+
+    # --- Vector search ---
+
+    def embed_node(self, node_id: str, text: str | None = None) -> bool:
+        """Generate and store an embedding for a node.
+
+        Args:
+            node_id: The node to embed.
+            text: Text to embed. Defaults to the node ID.
+
+        Returns:
+            True if embedding was stored, False if embedder is not configured or node not found.
+        """
+        if self._embedder is None or self._storage is None:
+            return False
+        cn = self._store.get_node(node_id)
+        if cn is None:
+            return False
+        embed_text = text or node_id
+        vec = self._embedder.embed(embed_text)
+        from hypabase.engine.vector import pack_embedding
+
+        blob = pack_embedding(vec)
+        emb_id = f"node:{self._current_ns}:{node_id}"
+        self._storage.save_embedding(
+            id=emb_id,
+            namespace=self._current_ns,
+            kind="node",
+            ref_id=node_id,
+            text=embed_text,
+            embedding=blob,
+            dimension=self._embedder.dimension,
+            model=getattr(self._embedder, "_model_name", None) or str(type(self._embedder).__name__),
+        )
+        return True
+
+    def embed_edge(self, edge_id: str, text: str | None = None) -> bool:
+        """Generate and store an embedding for an edge.
+
+        Args:
+            edge_id: The edge to embed.
+            text: Text to embed. Defaults to a string of the edge's node IDs joined with spaces.
+
+        Returns:
+            True if embedding was stored, False if embedder is not configured or edge not found.
+        """
+        if self._embedder is None or self._storage is None:
+            return False
+        ce = self._store.get_edge(edge_id)
+        if ce is None:
+            return False
+        if text is None:
+            text = " ".join(ce.nodes)
+        if not text:
+            return False
+        vec = self._embedder.embed(text)
+        from hypabase.engine.vector import pack_embedding
+
+        blob = pack_embedding(vec)
+        emb_id = f"edge:{self._current_ns}:{edge_id}"
+        self._storage.save_embedding(
+            id=emb_id,
+            namespace=self._current_ns,
+            kind="edge",
+            ref_id=edge_id,
+            text=text,
+            embedding=blob,
+            dimension=self._embedder.dimension,
+            model=getattr(self._embedder, "_model_name", None) or str(type(self._embedder).__name__),
+        )
+        return True
+
+    def search(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        kind: str | None = None,
+        type: str | None = None,
+        min_score: float = 0.0,
+    ) -> list[dict]:
+        """Semantic search over embedded nodes and edges.
+
+        Args:
+            query: The search query text.
+            limit: Maximum results to return.
+            kind: Filter by kind ("node" or "edge"). None returns both.
+            type: Filter by node/edge type.
+            min_score: Minimum cosine similarity score.
+
+        Returns:
+            List of dicts with keys: kind, ref_id, text, score, and optionally the full object.
+        """
+        if self._embedder is None or self._storage is None:
+            return []
+
+        from hypabase.engine.vector import pack_embedding
+
+        query_vec = self._embedder.embed(query)
+        query_blob = pack_embedding(query_vec)
+
+        if self._storage.vec_dimension is None:
+            # No embeddings stored yet
+            return []
+
+        # When kind and type are both specified, filter at the SQL level
+        sql_type_filter = type if kind in ("node", "edge") and type is not None else None
+        raw_results = self._storage.search_vec(
+            self._current_ns,
+            query_blob,
+            limit=limit * 2,
+            kind=kind,
+            type_filter=sql_type_filter,
+        )
+        results = []
+        for r in raw_results:
+            score = r["score"]
+            if score < min_score:
+                continue
+            result: dict[str, Any] = {
+                "kind": r["kind"],
+                "ref_id": r["ref_id"],
+                "text": r["text"],
+                "score": round(score, 6),
+            }
+            if r["kind"] == "node":
+                cn = self._store.get_node(r["ref_id"])
+                if cn is not None:
+                    if type is not None and sql_type_filter is None and cn.type != type:
+                        continue
+                    result["node"] = _core_node_to_model(cn)
+            elif r["kind"] == "edge":
+                ce = self._store.get_edge(r["ref_id"])
+                if ce is not None:
+                    if type is not None and sql_type_filter is None and ce.type != type:
+                        continue
+                    result["edge"] = _core_edge_to_model(ce)
+            results.append(result)
+        return results[:limit]
 
     # --- Stats ---
 

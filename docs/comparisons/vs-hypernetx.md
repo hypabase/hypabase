@@ -21,7 +21,7 @@ Hypabase is built for **storage and querying with provenance**. It provides CRUD
 | **Algorithms** | Metrics, set operations, analysis | Traversal, path finding, vertex-set lookup |
 | **Namespace isolation** | None | `.database("name")` scoping |
 | **Data backend** | Pandas DataFrames | Python dicts + SQLite |
-| **MCP server** | None | 14 tools + 2 resources |
+| **MCP server** | None | 4 tools |
 | **HIF support** | [Core contributor](https://github.com/pnnl/HyperNetX) to the format | Import/export supported |
 | **API style** | Analysis-oriented | CRUD-oriented |
 

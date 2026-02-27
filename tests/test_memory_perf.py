@@ -1,0 +1,56 @@
+"""Performance regression tests for the memory module.
+
+These tests verify that key operations complete within acceptable time bounds.
+They are intentionally generous — failures indicate a real regression, not
+tight-tolerance flakiness.
+"""
+
+from __future__ import annotations
+
+import time
+
+from hypabase.memory.agent import Memory
+
+
+class TestMemoryPerformance:
+    def test_remember_100_memories(self, tmp_db_path):
+        mem = Memory(path=tmp_db_path)
+        start = time.monotonic()
+        for i in range(100):
+            mem.remember(f'(met :subject "Alice Smith" :object "Person{i} Jones" :locus "Location{i} Park")')
+        elapsed = time.monotonic() - start
+        assert elapsed < 5.0, f"100 remember() calls took {elapsed:.1f}s (limit: 5s)"
+        mem.hb.close()
+
+    def test_recall_latency_10(self, tmp_db_path):
+        mem = Memory(path=tmp_db_path)
+        for i in range(10):
+            mem.remember(f'(met :subject "Alice Smith" :object "Person{i} Jones")')
+        start = time.monotonic()
+        results = mem.recall(entity="Alice Smith")
+        elapsed = time.monotonic() - start
+        assert elapsed < 0.5, f"recall over 10 memories took {elapsed:.1f}s (limit: 0.5s)"
+        assert len(results) >= 1
+        mem.hb.close()
+
+    def test_recall_latency_100(self, tmp_db_path):
+        mem = Memory(path=tmp_db_path)
+        for i in range(100):
+            mem.remember(f'(met :subject "Alice Smith" :object "Person{i} Jones" :locus "Location{i} Park")')
+        start = time.monotonic()
+        results = mem.recall(entity="Alice Smith")
+        elapsed = time.monotonic() - start
+        assert elapsed < 2.0, f"recall over 100 memories took {elapsed:.1f}s (limit: 2s)"
+        assert len(results) >= 1
+        mem.hb.close()
+
+    def test_forget_batch_50(self, tmp_db_path):
+        mem = Memory(path=tmp_db_path)
+        for i in range(50):
+            mem.remember(f'(met :subject "Alice Smith" :object "Person{i} Jones")')
+        start = time.monotonic()
+        count = mem.forget(min_strength=999.0)["expired_count"]
+        elapsed = time.monotonic() - start
+        assert count >= 50
+        assert elapsed < 2.0, f"forgetting 50 edges took {elapsed:.1f}s (limit: 2s)"
+        mem.hb.close()

@@ -6,8 +6,8 @@ Pydantic validation and serialization for the client-facing API.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -19,11 +19,11 @@ class Node(BaseModel):
     properties. Nodes are auto-created when referenced in an edge.
     """
 
-    id: str
+    id: str = Field(min_length=1)
     type: str = "unknown"
     properties: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     def __repr__(self) -> str:
         parts = [f"Node({self.id!r}, type={self.type!r}"]
@@ -43,7 +43,7 @@ class Incidence(BaseModel):
 
     node_id: str | None = None
     edge_ref_id: str | None = None
-    direction: str | None = None
+    direction: Literal["head", "tail"] | None = None
     properties: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -62,21 +62,33 @@ class Edge(BaseModel):
     arbitrary properties. Node order within the edge is preserved.
     """
 
-    id: str
+    id: str = Field(min_length=1)
     type: str
     incidences: list[Incidence] = Field(default_factory=list)
     directed: bool = False
     source: str = "unknown"
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     properties: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    valid_at: datetime | None = None
+    expired_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _check_temporal_ordering(self) -> Edge:
+        if self.valid_at is not None and self.expired_at is not None:
+            if self.expired_at < self.valid_at:
+                raise ValueError("expired_at must be >= valid_at")
+        return self
+
+    @property
+    def is_active(self) -> bool:
+        """True if the edge has not been expired."""
+        return self.expired_at is None
 
     def __repr__(self) -> str:
         node_ids = [inc.node_id for inc in self.incidences if inc.node_id is not None]
-        return (
-            f"Edge({self.type!r}: {node_ids}, source={self.source!r}, confidence={self.confidence})"
-        )
+        return f"Edge({self.type!r}: {node_ids}, source={self.source!r}, confidence={self.confidence})"
 
     @property
     def node_ids(self) -> list[str]:

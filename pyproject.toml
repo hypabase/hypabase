@@ -1,10 +1,10 @@
 [project]
 name = "hypabase"
-version = "0.1.2"
+version = "0.2.0"
 description = "A Python hypergraph library with provenance and SQLite persistence."
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "Hypabase" }]
 keywords = [
     "hypergraph",
@@ -23,7 +23,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -32,11 +31,13 @@ classifiers = [
 ]
 dependencies = [
     "pydantic>=2.0",
+    "sqlite-vec>=0.1.1",
+    "fastembed>=0.7",
+    "mcp>=1.0",
+    "click>=8.0",
 ]
 
 [project.optional-dependencies]
-cli = ["click>=8.0"]
-mcp = ["mcp>=1.0", "click>=8.0"]
 docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.24",
@@ -52,7 +53,7 @@ dev = [
 
 [project.scripts]
 hypabase = "hypabase.cli.main:cli"
-hypabase-mcp = "hypabase.mcp:run_server"
+hypabase-memory = "hypabase.memory.server:run"
 
 [project.urls]
 Homepage = "https://hypabase.app"
@@ -67,8 +68,8 @@ build-backend = "hatchling.build"
 testpaths = ["tests"]
 
 [tool.ruff]
-target-version = "py310"
-line-length = 100
+target-version = "py311"
+line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "W"]
@@ -80,7 +81,7 @@ select = ["E", "F", "I", "UP", "W"]
 quote-style = "double"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

@@ -3,7 +3,7 @@
 ## Installation
 
 ```bash
-uv add "hypabase[cli]"
+uv add hypabase
 ```
 
 ## Global options
@@ -122,3 +122,18 @@ Import a hypergraph from HIF JSON.
 hypabase import-hif INPUT_PATH
 hypabase --db target.db import-hif INPUT_PATH
 ```
+
+### `mcp`
+
+Start the Memory MCP server for AI agent integration.
+
+```bash
+hypabase mcp
+hypabase mcp --db /path/to/knowledge.db
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--db PATH` | `HYPABASE_DB_PATH` or `hypabase.db` | Database path |
+
+See the [MCP guide](../guides/mcp.md) for client configuration.
