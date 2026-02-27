@@ -1,4 +1,5 @@
 ---
+description: Persistent memory for agents. Stores preferences, decisions, facts, and events as a connected knowledge graph. Recalled by who, what, when, or why.
 metadata:
   clawdbot:
     emoji: "🧠"
