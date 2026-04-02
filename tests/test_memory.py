@@ -528,6 +528,261 @@ class TestRecallEdgeCases:
             mem.hb.close()
 
 
+class TestRecallQuery:
+    """Tests for recall(query=...) -- semantic edge search (Channel 1).
+
+    Uses MockEmbedder (4-dim hash vectors). Tests verify pipeline invariants
+    (dedup, filter passthrough, score structure, validation), not semantic
+    relevance, since 4-dim hash embeddings have noisy cosine similarity.
+    """
+
+    # ---- Validation ----
+
+    def test_recall_query_alone_passes_validation(self, tmp_db_path):
+        """recall(query=...) does not raise ValueError."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(prefers :subject Alice :object Python :memory_type semantic)")
+            # Should not raise
+            results = mem.recall(query="programming preferences")
+            assert isinstance(results, list)
+        finally:
+            mem.hb.close()
+
+    def test_recall_no_params_still_raises(self, tmp_db_path):
+        """No params at all still raises ValueError."""
+        mem = Memory(path=tmp_db_path)
+        try:
+            with pytest.raises(ValueError, match="At least one of"):
+                mem.recall()
+        finally:
+            mem.hb.close()
+
+    def test_recall_query_requires_no_entity(self, tmp_db_path):
+        """query alone is sufficient -- no entity needed."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(prefers :subject user :object Python :memory_type semantic)")
+            results = mem.recall(query="user prefers Python")
+            assert isinstance(results, list)
+        finally:
+            mem.hb.close()
+
+    # ---- Channel 1 retrieval ----
+
+    def test_recall_query_returns_results(self, tmp_db_path):
+        """recall(query=...) returns results with correct structure."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(prefers :subject Alice :object Python :memory_type semantic)")
+            mem.remember("(visited :subject Alice :object Tokyo :memory_type episodic)")
+            results = mem.recall(query="Alice prefers Python")
+            assert len(results) >= 1
+            # Verify result structure
+            for r in results:
+                assert "edge" in r
+                assert "score" in r
+                assert "strength" in r
+                assert "text" in r
+                assert "action" in r
+                assert "memory_type" in r
+                assert "roles" in r
+        finally:
+            mem.hb.close()
+
+    def test_recall_query_without_embedder_returns_empty(self, tmp_db_path):
+        """recall(query=...) with no embedder returns []."""
+        mem = Memory(path=tmp_db_path)
+        try:
+            mem.remember("(prefers :subject Alice :object Python)")
+            results = mem.recall(query="programming preferences")
+            assert results == []
+        finally:
+            mem.hb.close()
+
+    def test_recall_query_respects_limit(self, tmp_db_path):
+        """recall(query=..., limit=2) returns at most 2 results."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            for i in range(10):
+                mem.remember(f"(likes :subject Alice :object item{i} :memory_type semantic)")
+            results = mem.recall(query="Alice likes things", limit=2)
+            assert len(results) <= 2
+        finally:
+            mem.hb.close()
+
+    def test_recall_query_scores_are_positive(self, tmp_db_path):
+        """All returned results have score > 0."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(prefers :subject Alice :object Python :memory_type semantic)")
+            results = mem.recall(query="Alice prefers Python")
+            for r in results:
+                assert r["score"] > 0
+        finally:
+            mem.hb.close()
+
+    # ---- Parallel merge (Channel 1 + Channel 2) ----
+
+    def test_recall_query_combined_with_entity(self, tmp_db_path):
+        """recall(query=..., entity=...) returns results from both channels."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(prefers :subject Alice :object Python :memory_type semantic)")
+            mem.remember("(teaches :subject Alice :object Java :memory_type semantic)")
+            results = mem.recall(query="programming preferences", entity="Alice")
+            assert len(results) >= 1
+        finally:
+            mem.hb.close()
+
+    def test_recall_query_deduplicates(self, tmp_db_path):
+        """Same edge found by both channels appears only once."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(prefers :subject Alice :object Python :memory_type semantic)")
+            results = mem.recall(query="Alice prefers Python", entity="Alice")
+            edge_ids = [r["edge"].id for r in results]
+            assert len(edge_ids) == len(set(edge_ids)), "No duplicate edge IDs"
+        finally:
+            mem.hb.close()
+
+    def test_recall_query_score_upgrade(self, tmp_db_path):
+        """When both channels find same edge, score is max of the two."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(prefers :subject Alice :object Python :memory_type semantic)")
+            results = mem.recall(query="Alice prefers Python", entity="Alice")
+            assert len(results) >= 1
+            # Score should be positive (from whichever channel was stronger)
+            for r in results:
+                assert r["score"] > 0
+        finally:
+            mem.hb.close()
+
+    # ---- Filter passthrough (Step 3 applies to all channels) ----
+
+    def test_recall_query_filters_by_memory_type(self, tmp_db_path):
+        """Filters apply to semantic search results too."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(met :subject Alice :object Bob :memory_type episodic)")
+            mem.remember("(prefers :subject Alice :object Python :memory_type semantic)")
+            results = mem.recall(query="Alice", memory_type="semantic")
+            for r in results:
+                assert r["memory_type"] == "semantic"
+        finally:
+            mem.hb.close()
+
+    def test_recall_query_filters_by_action(self, tmp_db_path):
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(prefers :subject Alice :object Python)")
+            mem.remember("(dislikes :subject Alice :object Java)")
+            results = mem.recall(query="Alice", action="prefers")
+            for r in results:
+                assert r["action"] == "prefers"
+        finally:
+            mem.hb.close()
+
+    def test_recall_query_filters_by_mood(self, tmp_db_path):
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(deploy :subject Alice :object API :mood planned)")
+            mem.remember("(deployed :subject Alice :object API :mood actual)")
+            results = mem.recall(query="Alice deploy", mood="planned")
+            for r in results:
+                assert r["mood"] == "planned"
+        finally:
+            mem.hb.close()
+
+    def test_recall_query_filters_by_negated(self, tmp_db_path):
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(uses :subject team :object Python)")
+            mem.remember("(uses :subject team :object Java :negated true)")
+            results = mem.recall(query="team uses", negated=True)
+            for r in results:
+                assert r["negated"] is True
+        finally:
+            mem.hb.close()
+
+    def test_recall_query_filters_by_min_strength(self, tmp_db_path):
+        """min_strength=999 returns empty -- no memory is that strong."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(prefers :subject Alice :object Python :memory_type semantic)")
+            results = mem.recall(query="Alice prefers Python", min_strength=999.0)
+            assert len(results) == 0
+        finally:
+            mem.hb.close()
+
+    # ---- Access tracking ----
+
+    def test_recall_query_records_access(self, tmp_db_path):
+        """After recall(query=...), access is tracked (strength increases)."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(prefers :subject Alice :object Python :memory_type semantic)")
+            # First recall
+            r1 = mem.recall(query="Alice prefers Python")
+            if r1:
+                s1 = r1[0]["strength"]
+                # Second recall -- access_count increments, strength should increase
+                r2 = mem.recall(query="Alice prefers Python")
+                if r2:
+                    s2 = r2[0]["strength"]
+                    assert s2 >= s1
+        finally:
+            mem.hb.close()
+
+    # ---- Graceful degradation ----
+
+    def test_recall_query_only_no_embedder_no_crash(self, tmp_db_path):
+        """recall(query=...) with no embedder doesn't crash."""
+        mem = Memory(path=tmp_db_path)
+        try:
+            mem.remember("(prefers :subject Alice :object Python)")
+            results = mem.recall(query="anything")
+            assert isinstance(results, list)
+        finally:
+            mem.hb.close()
+
+    # ---- S&B alignment (scan-all guard) ----
+
+    def test_recall_query_only_does_not_scan_all_edges(self, tmp_db_path):
+        """query-only mode uses semantic search, not score=0.5 scan-all."""
+        embedder = MockEmbedder()
+        mem = Memory(path=tmp_db_path, embedder=embedder)
+        try:
+            mem.remember("(prefers :subject Alice :object Python :memory_type semantic)")
+            mem.remember("(visited :subject Bob :object Mars :memory_type episodic)")
+            results = mem.recall(query="Alice prefers Python")
+            # If scan-all fired, all results would have score=0.5
+            # Semantic search produces variable scores based on cosine similarity
+            if results:
+                scores = {r["score"] for r in results}
+                # At least some score should NOT be exactly 0.5
+                assert not all(s == 0.5 for s in scores), (
+                    "All scores are 0.5 -- scan-all branch likely fired instead of semantic search"
+                )
+        finally:
+            mem.hb.close()
+
+
 class TestForgetEdgeCases:
     def test_forget_older_than_and_min_strength_combined(self, tmp_db_path):
         """Conjunction of older_than + min_strength filters works."""

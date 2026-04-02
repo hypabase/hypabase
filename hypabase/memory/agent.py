@@ -275,6 +275,7 @@ class Memory:
     def recall(
         self,
         *,
+        query: str | None = None,
         entity: str | list[str] | None = None,
         action: str | None = None,
         role: KarakaRole | None = None,
@@ -286,14 +287,17 @@ class Memory:
         limit: int = 10,
         min_strength: float = 0.0,
     ) -> list[dict]:
-        """Recall memories using S&B's IS-constrained path finding.
+        """Recall memories via semantic search + S&B graph traversal.
 
         Pipeline:
         1. **Match**: Resolve entity names to anchor nodes (cache + same_as + search)
         2. **Find**: IS-constrained paths (2+ anchors) or neighborhood (1 anchor)
+        2b. **Semantic**: Embedding KNN search on edges (when query provided)
         3. **Filter + Rank**: Grammar filters, then score by activation x strength
 
         Args:
+            query: Natural language query for semantic edge search (embedding
+                similarity).  Can be used alone or combined with entity/filters.
             entity: Entity name(s) for lookup. String or list of strings.
             action: Filter to edges of this action type (verb).
             role: Filter to edges where an entity has this karaka role.
@@ -309,8 +313,8 @@ class Memory:
             List of dicts with 'edge', 'score', 'strength', 'text',
             'action', 'memory_type', 'mood', 'negated', and 'roles'.
         """
-        if entity is None and action is None and memory_type is None and mood is None:
-            raise ValueError("At least one of entity, action, memory_type, or mood must be provided.")
+        if entity is None and action is None and memory_type is None and mood is None and query is None:
+            raise ValueError("At least one of query, entity, action, memory_type, or mood must be provided.")
         if role is not None and entity is None:
             raise ValueError(
                 "role filter requires entity to be specified. "
@@ -422,16 +426,49 @@ class Memory:
                             }
                         )
         else:
-            # No entity provided -- scan all active edges (filter-only mode)
-            for edge in self._hb.edges(active=True):
-                if edge.type not in _INFRA_TYPES:
-                    candidates.append(
-                        {
-                            "edge": edge,
-                            "score": 0.5,
-                            "text": edge.properties.get("text", ""),
-                        }
-                    )
+            # No entity provided -- scan all active edges only if a filter is set.
+            # query-only mode relies on semantic search in Step 2b, not full scan.
+            if action is not None or memory_type is not None or mood is not None:
+                for edge in self._hb.edges(active=True):
+                    if edge.type not in _INFRA_TYPES:
+                        candidates.append(
+                            {
+                                "edge": edge,
+                                "score": 0.5,
+                                "text": edge.properties.get("text", ""),
+                            }
+                        )
+
+        # ---- Step 2b: SEMANTIC SEARCH -- embedding KNN on edges ----
+        if query is not None and self._embedder is not None and self._hb.storage is not None:
+            try:
+                semantic_results = self._hb.search(
+                    query,
+                    kind="edge",
+                    limit=limit * 3,
+                    min_score=0.3,
+                )
+                for sr in semantic_results:
+                    edge = sr.get("edge")  # type: ignore[assignment]
+                    if edge is None:
+                        continue
+                    if edge.id in seen_edge_ids:
+                        # Already found via graph traversal — upgrade score if semantic is higher
+                        for c in candidates:
+                            if c["edge"].id == edge.id:
+                                c["score"] = max(c["score"], sr["score"])
+                                break
+                    elif edge.is_active and edge.type not in _INFRA_TYPES:
+                        seen_edge_ids.add(edge.id)
+                        candidates.append(
+                            {
+                                "edge": edge,
+                                "score": sr["score"],
+                                "text": edge.properties.get("text", sr.get("text", "")),
+                            }
+                        )
+            except Exception:
+                logger.warning("Semantic edge search failed for query %r", query, exc_info=True)
 
         if not candidates:
             return []
