@@ -99,7 +99,8 @@ mcp = FastMCP(
     instructions=(
         "You have persistent memory. Use PENMAN notation to store and recall facts.\n\n"
         "remember(penman='(verb :role entity ...)') -- store memories\n"
-        "recall(entity='...') -- find memories\n"
+        "recall(query='...') -- search memories by meaning\n"
+        "recall(entity='...') -- find memories by entity\n"
         "consolidate() -- merge similar entities and compress memories\n"
         "forget(older_than_days=30) -- clean up\n\n"
         "Example: remember(penman='(prefers :subject Alice :object Python :memory_type semantic)')\n\n"
@@ -305,6 +306,7 @@ def remember(
 @mcp.tool()
 @_safe_tool
 def recall(
+    query: str | None = None,
     entity: str | list[str] | None = None,
     action: str | None = None,
     role: str | None = None,
@@ -318,7 +320,8 @@ def recall(
 ) -> dict:
     """Recall memories using the same grammar you stored with.
 
-    Use the dimensions you know:
+    Search modes:
+    - query: NATURAL LANGUAGE -- "What does Alice prefer?" finds semantically similar memories
     - entity: WHO/WHAT -- "Alice", "API", or ["Alice", "API"] for both
     - action: verb -- "assign", "decide", "deploy"
     - role: karaka role -- subject/object/instrument/recipient/source/locus/attribute/value
@@ -332,18 +335,22 @@ def recall(
     - since / before: ISO date strings
 
     Examples:
-    - recall(entity="Alice")                                 -- everything about Alice
+    - recall(query="programming language preferences")         -- semantic search
+    - recall(query="project deadlines", entity="Alice")        -- semantic + graph
+    - recall(entity="Alice")                                   -- everything about Alice
     - recall(entity="Alice", action="assign", role="subject")  -- what Alice assigned
-    - recall(entity="Bob", role="recipient")                 -- what was done TO Bob
-    - recall(entity=["Alice", "API"])                        -- memories involving both
-    - recall(mood="planned")                                 -- all plans
-    - recall(action="deploy", negated=true)                  -- what should NOT be deployed
+    - recall(entity="Bob", role="recipient")                   -- what was done TO Bob
+    - recall(entity=["Alice", "API"])                          -- memories involving both
+    - recall(mood="planned")                                   -- all plans
+    - recall(action="deploy", negated=true)                    -- what should NOT be deployed
 
     If recall returns no results, the most common cause is a naming
     variance (e.g., "Bob" vs "Robert"). Try the exact name used in
     remember(), or try recall by action or memory_type instead.
+    Or use query= to search by meaning instead of exact entity names.
 
     Args:
+        query: Natural language search query. Finds memories by semantic similarity.
         entity: Entity name or list of names for lookup.
         action: Filter by action type (the verb).
         role: Filter by karaka role (subject/object/instrument/recipient/source/locus/attribute/value).
@@ -380,6 +387,7 @@ def recall(
         before_dt = None
 
     results = mem.recall(
+        query=query,
         entity=entity,
         action=action,
         role=cast(KarakaRole | None, role),
