@@ -15,8 +15,8 @@ class TestNodeOperationsPerformance:
             graph_10k.add_node(Node(f"new_node_{i}", "test"))
         elapsed = time.perf_counter() - start
 
-        # 1000 adds should take < 100ms (0.1ms per add)
-        assert elapsed < 0.1, f"Adding 1000 nodes took {elapsed:.3f}s"
+        # 1000 adds should take < 200ms (0.2ms per add) — margin for CI runners
+        assert elapsed < 0.2, f"Adding 1000 nodes took {elapsed:.3f}s"
 
     def test_get_node_performance(self, graph_10k):
         """Getting a node by ID should be O(1)."""
